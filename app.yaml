@@ -1,0 +1,33 @@
+runtime: go
+env: flex
+service: autojoin
+
+runtime_config:
+  operating_system: "ubuntu22"
+  runtime_version: "1.21"
+
+# TODO(soltesz): enable endpoints configuration.
+#endpoints_api_service:
+#  name: locate-dot-{{PROJECT}}.appspot.com
+#  rollout_strategy: managed
+
+resources:
+  cpu: 2
+  memory_gb: 8
+
+network:
+  # TODO(soltesz): setup monitoring for production (in mlab-autojoin).
+  name: default
+  forwarded_ports:
+    - 9090/tcp
+
+liveness_check:
+  path: "/v0/live"
+  initial_delay_sec: 300
+
+readiness_check:
+  path: "/v0/ready"
+  app_start_timeout_sec: 300
+
+env_variables:
+  PROMETHEUSX_LISTEN_ADDRESS: ':9090' # Must match one of the forwarded_ports above.
