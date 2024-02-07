@@ -17,7 +17,7 @@ func NewServer(project string) *Server {
 	}
 }
 
-// Lookup is a handler used to loookup a nearest IATA given client IP or lat/lon metadata.
+// Lookup is a handler used to find the nearest IATA given client IP or lat/lon metadata.
 func (s *Server) Lookup(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(rw, "TODO(soltesz): complete lookup logic\n")
 }
