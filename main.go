@@ -17,24 +17,8 @@ import (
 )
 
 var (
-	listenPort         string
-	project            string
-	platform           string
-	locatorAE          bool
-	locatorMM          bool
-	legacyServer       string
-	signerSecretName   string
-	maxmind            = flagx.URL{}
-	verifySecretName   string
-	redisAddr          string
-	promUserSecretName string
-	promPassSecretName string
-	promURL            string
-	limitsPath         string
-	keySource          = flagx.Enum{
-		Options: []string{"secretmanager", "local"},
-		Value:   "secretmanager",
-	}
+	listenPort string
+	project    string
 
 	// RequestHandlerDuration is a histogram that tracks the latency of each request handler.
 	RequestHandlerDuration = promauto.NewHistogramVec(
