@@ -27,11 +27,12 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(rw, "TODO(soltesz): complete register logic\n")
 }
 
-// Live is a handler to report whether the system is live.
+// Live reports whether the system is live.
 func (s *Server) Live(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(rw, "ok")
 }
 
+// Ready reports whether the server is ready.
 func (s *Server) Ready(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(rw, "ok")
 }
