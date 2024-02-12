@@ -1,0 +1,3 @@
+"country_code","region_name","iata","icao","airport","latitude","longitude"
+"US","New York","LGA","KLGA","LaGuardia Airport","40.775"
+"US","New York","LGA","KLGA","LaGuardia Airport","40.775","abcdefg"
