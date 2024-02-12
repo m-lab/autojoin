@@ -14,6 +14,7 @@ type Server struct {
 	Iata    IataFinder
 }
 
+// IataFinder is an interface used by the Server to manage IATA information.
 type IataFinder interface {
 	Lookup(country string, lat, lon float64) (string, error)
 	Load(ctx context.Context) error
@@ -27,6 +28,7 @@ func NewServer(project string, finder IataFinder) *Server {
 	}
 }
 
+// Reload reloads all resources used by the Server.
 func (s *Server) Reload(ctx context.Context) {
 	s.Iata.Load(ctx)
 }
@@ -76,7 +78,7 @@ func rawCountry(req *http.Request) string {
 	if c != "" {
 		return c
 	}
-	c = req.URL.Query().Get("X-AppEngine-Country")
+	c = req.Header.Get("X-AppEngine-Country")
 	if c != "" {
 		return c
 	}
@@ -90,7 +92,7 @@ func rawLatLon(req *http.Request) (string, string) {
 	if lat != "" && lon != "" {
 		return lat, lon
 	}
-	latlon := req.URL.Query().Get("X-AppEngine-CityLatLong")
+	latlon := req.Header.Get("X-AppEngine-CityLatLong")
 	if latlon == "0.000000,0.000000" {
 		// TODO: lookup with request IP.
 		return "", ""
