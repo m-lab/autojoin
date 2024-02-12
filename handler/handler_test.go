@@ -120,3 +120,17 @@ func TestServer_Reload(t *testing.T) {
 		}
 	})
 }
+
+func TestServer_LiveAndReady(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		f := &fakeIataFinder{}
+		s := NewServer("fake", f)
+		rw := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		s.Live(rw, req)
+		s.Ready(rw, req)
+
+		// TODO: remove once handler has a real implementation.
+		s.Register(rw, req)
+	})
+}
