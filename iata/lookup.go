@@ -100,10 +100,14 @@ var ErrNoAirports = errors.New("no airports in country")
 
 // Lookup searches for the IATA code closest to the given lat/lon within the given country.
 func (c *Client) Lookup(country string, lat, lon float64) (string, error) {
+	c.mu.Lock()
+	// Allow safe Load during Lookup.
+	rows := c.rows
+	c.mu.Unlock()
 	// Find all distances to airports in country.
 	airports := []dist{}
-	for i := range c.rows {
-		r := c.rows[i]
+	for i := range rows {
+		r := rows[i]
 		if r.CountryCode == country {
 			distance := mathx.GetHaversineDistance(lat, lon, r.Latitude, r.Longitude)
 			d := dist{
