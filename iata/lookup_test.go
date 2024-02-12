@@ -14,7 +14,6 @@ func TestNew(t *testing.T) {
 		file    string
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "success",
 			file: "file:testdata/input.csv",
