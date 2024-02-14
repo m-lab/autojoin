@@ -11,18 +11,17 @@ import (
 	"github.com/m-lab/uuid-annotator/tarreader"
 )
 
-// Maxmind manages access to the maxmind database.
+// NewMaxmindManger creates a new MaxmindManager and loads Maxmind data from the
+// given content.Provider.
+func NewMaxmind(src content.Provider) *Maxmind {
+	return &Maxmind{src: src}
+}
+
+// MaxmindManager manages access to the maxmind database.
 type Maxmind struct {
 	mu      sync.RWMutex
 	src     content.Provider
 	Maxmind *geoip2.Reader
-}
-
-// NewMaxmind creates a new Maxmind instance which loads data from the given
-// content.Provider. Callers must call Reload() at least once on the returned
-// Maxmind instance before calling City().
-func NewMaxmind(src content.Provider) *Maxmind {
-	return &Maxmind{src: src}
 }
 
 // City searches for metadata associated with the given IP.
