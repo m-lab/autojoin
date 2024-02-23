@@ -18,4 +18,5 @@ steps:
 # Deployment of APIs in sandbox & staging.
 - name: gcr.io/$PROJECT_ID/gcloud-jsonnet-cbif:1.1
   args:
+  - sed -i -e 's/{{PROJECT_ID}}/$PROJECT_ID/g' app.yaml
   - gcloud --project $PROJECT_ID app deploy --promote app.yaml
