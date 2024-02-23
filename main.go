@@ -9,20 +9,25 @@ import (
 
 	"github.com/m-lab/autojoin/handler"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/maxmind"
+	"github.com/m-lab/go/content"
 	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/httpx"
 	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/uuid-annotator/asnannotator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	listenPort string
-	project    string
-	iataSrc    = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.10/iata-icao.csv")
+	listenPort   string
+	project      string
+	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.10/iata-icao.csv")
+	maxmindSrc   = flagx.URL{}
+	routeviewSrc = flagx.URL{}
 
 	// RequestHandlerDuration is a histogram that tracks the latency of each request handler.
 	RequestHandlerDuration = promauto.NewHistogramVec(
@@ -39,6 +44,8 @@ func init() {
 	flag.StringVar(&listenPort, "port", "8080", "AppEngine port environment variable")
 	flag.StringVar(&project, "google-cloud-project", "", "AppEngine project environment variable")
 	flag.Var(&iataSrc, "iata-url", "URL to IATA dataset")
+	flag.Var(&maxmindSrc, "maxmind-url", "When -locator-maxmind is true, the tar URL of MaxMind IP database. May be: gs://bucket/file or file:./relativepath/file")
+	flag.Var(&routeviewSrc, "routeview-v4.url", "The URL for the RouteViewIPv4 file containing ASN metadata. gs:// and file:// schemes accepted.")
 
 	// Enable logging with line numbers to trace error locations.
 	log.SetFlags(log.LUTC | log.Llongfile)
@@ -57,10 +64,19 @@ func main() {
 	i, err := iata.New(mainCtx, iataSrc.URL)
 	rtx.Must(err, "failed to load iata dataset")
 
-	s := handler.NewServer(project, i)
+	mmsrc, err := content.FromURL(mainCtx, maxmindSrc.URL)
+	rtx.Must(err, "failed to load maxmindurl: %s", maxmindSrc.URL)
+	mm := maxmind.NewMaxmind(mmsrc)
+	rvsrc, err := content.FromURL(mainCtx, routeviewSrc.URL)
+	rtx.Must(err, "Could not load routeview v4 URL")
+	asn := asnannotator.NewIPv4(mainCtx, rvsrc)
+
+	s := handler.NewServer(project, i, mm, asn)
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)
+		s.Maxmind.Reload(mainCtx)
+		s.ASN.Reload(mainCtx)
 
 		// Check and reload db at least once a day.
 		reloadConfig := memoryless.Config{
@@ -72,6 +88,8 @@ func main() {
 		rtx.Must(err, "Could not create ticker for reloading")
 		for range tick.C {
 			s.Iata.Load(mainCtx)
+			s.Maxmind.Reload(mainCtx)
+			s.ASN.Reload(mainCtx)
 		}
 	}()
 
