@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -14,6 +13,8 @@ import (
 	"strings"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
+	"github.com/m-lab/autojoin/iata"
+	v2 "github.com/m-lab/locate/api/v2"
 	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
 )
@@ -35,6 +36,7 @@ type MaxmindFinder interface {
 // IataFinder is an interface used by the Server to manage IATA information.
 type IataFinder interface {
 	Lookup(country string, lat, lon float64) (string, error)
+	Find(iata string) (iata.Row, error)
 	Load(ctx context.Context) error
 }
 
@@ -63,6 +65,8 @@ func (s *Server) Reload(ctx context.Context) {
 
 // Lookup is a handler used to find the nearest IATA given client IP or lat/lon metadata.
 func (s *Server) Lookup(rw http.ResponseWriter, req *http.Request) {
+	// lookup country - param, app engine, maxmind(ip)
+	// lookup latlon - param, app engine, maxmind(ip)
 	country := rawCountry(req)
 	if country == "" {
 		rw.WriteHeader(http.StatusBadRequest)
@@ -88,6 +92,11 @@ func (s *Server) Lookup(rw http.ResponseWriter, req *http.Request) {
 
 // Register is a handler used by autonodes to register with M-Lab on startup.
 func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
+	// service - required, param
+	// org - required, param, api key
+	// iata - required
+	// ip - geo locations
+	// asn - from ip
 	service := req.URL.Query().Get("service")
 	if !isValidName(service) {
 		fmt.Println("service")
@@ -108,23 +117,89 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	iata, err := s.rawIata(req, ip)
+	iata, err := rawIata(req)
 	if err != nil {
 		fmt.Println("raw iata")
 		rw.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	row, err := s.Iata.Find(iata)
+	if err != nil {
+		fmt.Println("iata not found")
+		rw.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	record, err := s.Maxmind.City(ip)
+	if err != nil {
+		fmt.Println("maxmind lookup failure")
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	tmp := &annotator.Geolocation{
+		ContinentCode: record.Continent.Code,
+		CountryCode:   record.Country.IsoCode,
+		CountryName:   record.Country.Names["en"],
+		MetroCode:     int64(record.Location.MetroCode),
+		City:          record.City.Names["en"],
+		PostalCode:    record.Postal.Code,
+		// Use iata location as authoritative.
+		Latitude:  row.Latitude,
+		Longitude: row.Longitude,
+	}
+	// Collect subdivision information, if found.
+	if len(record.Subdivisions) > 0 {
+		tmp.Subdivision1ISOCode = record.Subdivisions[0].IsoCode
+		tmp.Subdivision1Name = record.Subdivisions[0].Names["en"]
+		if len(record.Subdivisions) > 1 {
+			tmp.Subdivision2ISOCode = record.Subdivisions[1].IsoCode
+			tmp.Subdivision2Name = record.Subdivisions[1].Names["en"]
+		}
+	}
 
 	ann := s.ASN.AnnotateIP(rawip)
-	hexip := hex.EncodeToString(ip.To4())
+	machine := hex.EncodeToString(ip.To4())
+	site := fmt.Sprintf("%s%d", iata, ann.ASNumber)
+	// TODO: populate project by local project.
+	hostname := fmt.Sprintf("%s-%s-%s.%s.%s.measurement-lab.org", service, site, machine, org, strings.TrimPrefix(s.Project, "mlab-"))
 	r := v0.RegisterResponse{
 		Registration: &v0.Registration{
-			Hostname: fmt.Sprintf("%s-%s%d-%s.%s.autojoin.measurement-lab.org", service, iata, ann.ASNumber, hexip, org),
+			Hostname: hostname,
+			Annotation: &v0.ServerAnnotation{
+				Annotation: annotator.ServerAnnotations{
+					Site:    site,
+					Machine: machine,
+					Geo:     tmp,
+					Network: ann,
+				},
+				Network: v0.Network{
+					IPv4: rawip,
+					IPv6: "",
+				},
+				Type: "unknown",
+			},
+			Heartbeat: &v2.Registration{
+				City:          tmp.City,
+				CountryCode:   tmp.CountryCode,
+				ContinentCode: tmp.ContinentCode,
+				Experiment:    service,
+				Hostname:      hostname,
+				Latitude:      tmp.Latitude,
+				Longitude:     tmp.Longitude,
+				Machine:       machine,
+				Metro:         site[:3],
+				Project:       s.Project,
+				Probability:   1,
+				Site:          site,
+				Type:          "unknown", // should be overridden by node.
+				Uplink:        "unknown", // should be overridden by node.
+			},
 		},
 	}
 	b, _ := json.MarshalIndent(r, "", " ")
-	fmt.Print(string(b))
-	fmt.Fprint(rw, string(b))
+	// fmt.Print(string(b))
+	rw.Write(b)
 }
 
 // Live reports whether the system is live.
@@ -142,21 +217,12 @@ var (
 	ErrInternalError = errors.New("internal error")
 )
 
-func (s *Server) rawIata(req *http.Request, ip net.IP) (string, error) {
+func rawIata(req *http.Request) (string, error) {
 	iata := req.URL.Query().Get("iata")
 	if iata != "" && len(iata) == 3 && isValidName(iata) {
 		return strings.ToLower(iata), nil
 	}
-	record, err := s.Maxmind.City(ip)
-	if err != nil {
-		return "", ErrInternalError
-	}
-	log.Println(record)
-	iata, err = s.Iata.Lookup(record.Country.IsoCode, record.Location.Latitude, record.Location.Longitude)
-	if err != nil {
-		return "", ErrInternalError
-	}
-	return iata, nil
+	return "", ErrInternalError
 }
 
 func rawCountry(req *http.Request) string {
@@ -193,7 +259,7 @@ func rawLatLon(req *http.Request) (string, string) {
 
 func rawIPFromRequest(req *http.Request) string {
 	// Use given IP parameter.
-	rawip := req.URL.Query().Get("ip")
+	rawip := req.URL.Query().Get("ipv4")
 	if rawip != "" {
 		return rawip
 	}
@@ -224,3 +290,6 @@ func isValidName(s string) bool {
 	}
 	return matched
 }
+
+/*
+}*/

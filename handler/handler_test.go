@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
+	"github.com/m-lab/autojoin/iata"
 	"github.com/m-lab/go/testingx"
 	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
@@ -20,6 +21,7 @@ type fakeIataFinder struct {
 	iata  string
 	err   error
 	loads int
+	row   iata.Row
 }
 
 func (f *fakeIataFinder) Lookup(country string, lat, lon float64) (string, error) {
@@ -28,6 +30,10 @@ func (f *fakeIataFinder) Lookup(country string, lat, lon float64) (string, error
 	}
 	return f.iata, nil
 }
+func (f *fakeIataFinder) Find(airport string) (iata.Row, error) {
+	return f.row, nil
+}
+
 func (f *fakeIataFinder) Load(ctx context.Context) error {
 	f.loads++
 	return nil
@@ -141,7 +147,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("fake", f, &fakeMaxmind{}, &fakeAsn{})
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{})
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -152,7 +158,7 @@ func TestServer_Reload(t *testing.T) {
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("fake", f, &fakeMaxmind{}, &fakeAsn{})
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{})
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -173,13 +179,43 @@ func TestServer_Register(t *testing.T) {
 	}{
 		{
 			name:   "success",
-			params: "?service=foo&organization=bar&iata=lga&ip=192.168.0.1",
+			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			Iata: &fakeIataFinder{
+				row: iata.Row{
+					IATA:      "abc",
+					Latitude:  -10,
+					Longitude: -10,
+				},
+			},
+			Maxmind: &fakeMaxmind{
+				// NOTE: this riduculous declaration is needed due to anonymous structs in the geoop2 package.
+				city: &geoip2.City{
+					Country: struct {
+						GeoNameID         uint              `maxminddb:"geoname_id"`
+						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
+						IsoCode           string            `maxminddb:"iso_code"`
+						Names             map[string]string `maxminddb:"names"`
+					}{
+						IsoCode: "US",
+					},
+					Location: struct {
+						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
+						Latitude       float64 `maxminddb:"latitude"`
+						Longitude      float64 `maxminddb:"longitude"`
+						MetroCode      uint    `maxminddb:"metro_code"`
+						TimeZone       string  `maxminddb:"time_zone"`
+					}{
+						Latitude:  41,
+						Longitude: -73,
+					},
+				},
+			},
 			ASN: &fakeAsn{
 				ann: &annotator.Network{
 					ASNumber: 12345,
 				},
 			},
-			wantName: "foo-lga12345-c0a80001.bar.autojoin.measurement-lab.org",
+			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 			wantCode: http.StatusOK,
 		},
 		{
@@ -194,7 +230,7 @@ func TestServer_Register(t *testing.T) {
 		},
 		{
 			name:     "error-bad-ip",
-			params:   "?service=foo&organization=bar&ip=-BAD-IP-",
+			params:   "?service=foo&organization=bar&ipv4=-BAD-IP-",
 			wantCode: http.StatusBadRequest,
 		},
 		{
@@ -203,36 +239,13 @@ func TestServer_Register(t *testing.T) {
 			Maxmind: &fakeMaxmind{
 				err: errors.New("bad lookup"),
 			},
-			/*
-					city: &geoip2.City{
-						Country: struct {
-							GeoNameID         uint              `maxminddb:"geoname_id"`
-							IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-							IsoCode           string            `maxminddb:"iso_code"`
-							Names             map[string]string `maxminddb:"names"`
-						}{
-							IsoCode: "US",
-						},
-						Location: struct {
-							AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
-							Latitude       float64 `maxminddb:"latitude"`
-							Longitude      float64 `maxminddb:"longitude"`
-							MetroCode      uint    `maxminddb:"metro_code"`
-							TimeZone       string  `maxminddb:"time_zone"`
-						}{
-							Latitude:  41,
-							Longitude: -73,
-						},
-					},
-				},
-			*/
-			params:   "?service=foo&organization=bar&ip=192.168.0.1&iata=-invalid-",
+			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=-invalid-",
 			wantCode: http.StatusBadRequest,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("fake", tt.Iata, tt.Maxmind, tt.ASN)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
