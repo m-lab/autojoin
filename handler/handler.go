@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
+	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
 )
 
@@ -130,9 +131,9 @@ func rawLatLon(req *http.Request) (string, string) {
 
 func writeResponse(rw http.ResponseWriter, resp interface{}) error {
 	b, err := json.MarshalIndent(resp, "", "  ")
-	if err != nil {
-		return err
-	}
+	// NOTE: marshal can only fail on incompatible types, like functions. The
+	// panic will be caught by the http server handler.
+	rtx.PanicOnError(err, "failed to marshal response")
 	rw.Write(b)
 	return nil
 }
