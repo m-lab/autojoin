@@ -135,7 +135,8 @@ func (c *Client) Find(iata string) (Row, error) {
 	rows := c.rows
 	c.mu.Unlock()
 	iata = strings.ToLower(iata)
-	// Find all distances to airports in country.
+	// Check each known airport for the given one.
+	// Note: this is a linear search since airports are not in a guaranteed order.
 	for i := range rows {
 		r := rows[i]
 		if r.IATA == iata {
