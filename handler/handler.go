@@ -2,10 +2,14 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+
+	v0 "github.com/m-lab/autojoin/api/v0"
+	v2 "github.com/m-lab/locate/api/v2"
 )
 
 // Server maintains shared state for the server.
@@ -35,27 +39,46 @@ func (s *Server) Reload(ctx context.Context) {
 
 // Lookup is a handler used to find the nearest IATA given client IP or lat/lon metadata.
 func (s *Server) Lookup(rw http.ResponseWriter, req *http.Request) {
+	resp := v0.LookupResponse{}
 	country := rawCountry(req)
 	if country == "" {
-		rw.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(rw, "could not determine country")
+		resp.Error = &v2.Error{
+			Type:   "?country=<country>",
+			Title:  "could not determine country from request",
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
 		return
 	}
 	rlat, rlon := rawLatLon(req)
 	lat, errLat := strconv.ParseFloat(rlat, 64)
 	lon, errLon := strconv.ParseFloat(rlon, 64)
 	if errLat != nil || errLon != nil {
-		rw.WriteHeader(http.StatusBadRequest)
-		fmt.Fprintf(rw, "could not determine lat/lon")
+		resp.Error = &v2.Error{
+			Type:   "?lat=<lat>&lon=<lon>",
+			Title:  "could not determine lat/lon from request",
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
 		return
 	}
 	code, err := s.Iata.Lookup(country, lat, lon)
 	if err != nil {
-		rw.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprintf(rw, "could not determine iata code: %v", err)
+		resp.Error = &v2.Error{
+			Type:   "internal error",
+			Title:  "could not determine iata from request",
+			Status: http.StatusInternalServerError,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
 		return
 	}
-	fmt.Fprintf(rw, "%s\n", code)
+	resp.Lookup = &v0.Lookup{
+		IATA: code,
+	}
+	writeResponse(rw, resp)
 }
 
 // Register is a handler used by autonodes to register with M-Lab on startup.
@@ -103,4 +126,13 @@ func rawLatLon(req *http.Request) (string, string) {
 	}
 	// TODO: lookup with request IP.
 	return "", ""
+}
+
+func writeResponse(rw http.ResponseWriter, resp interface{}) error {
+	b, err := json.MarshalIndent(resp, "", "  ")
+	if err != nil {
+		return err
+	}
+	rw.Write(b)
+	return nil
 }

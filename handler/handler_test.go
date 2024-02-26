@@ -2,11 +2,14 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
+
+	v0 "github.com/m-lab/autojoin/api/v0"
+	"github.com/m-lab/go/testingx"
 )
 
 type fakeIataFinder struct {
@@ -102,9 +105,10 @@ func TestServer_Lookup(t *testing.T) {
 			if rw.Code != tt.wantCode {
 				t.Errorf("Lookup() returned wrong code; got %d, want %d", rw.Code, tt.wantCode)
 			}
-			resp := strings.Trim(rw.Body.String(), "\n")
-			if rw.Code == http.StatusOK && resp != tt.wantIata {
-				t.Errorf("Lookup() returned wrong iata; got %s, want %s", resp, tt.wantIata)
+			resp := &v0.LookupResponse{}
+			testingx.Must(t, json.Unmarshal(rw.Body.Bytes(), resp), "failed to parse response")
+			if rw.Code == http.StatusOK && resp.Lookup != nil && resp.Lookup.IATA != tt.wantIata {
+				t.Errorf("Lookup() returned wrong iata; got %#v, want %s", resp, tt.wantIata)
 			}
 		})
 	}
