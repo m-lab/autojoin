@@ -2,6 +2,7 @@ package maxmind
 
 import (
 	"context"
+	"errors"
 	"net"
 	"sync"
 
@@ -9,6 +10,11 @@ import (
 	"github.com/oschwald/geoip2-golang"
 
 	"github.com/m-lab/uuid-annotator/tarreader"
+)
+
+var (
+	// ErrNotFound is returned when City lookups return no results.
+	ErrNotFound = errors.New("no results found during lookup")
 )
 
 // Maxmind manages access to the maxmind database.
@@ -29,7 +35,19 @@ func NewMaxmind(src content.Provider) *Maxmind {
 func (mm *Maxmind) City(ip net.IP) (*geoip2.City, error) {
 	mm.mu.RLock()
 	defer mm.mu.RUnlock()
+	record, err := mm.Maxmind.City(ip)
+	if err != nil {
+		return nil, err
+	}
+	if isEmpty(record) {
+		return nil, ErrNotFound
+	}
 	return mm.Maxmind.City(ip)
+}
+
+func isEmpty(r *geoip2.City) bool {
+	// The record has no associated city, country, or continent.
+	return r.City.GeoNameID == 0 && r.Country.GeoNameID == 0 && r.Continent.GeoNameID == 0
 }
 
 // Reload is intended to be called regularly to update the local dataset with
