@@ -42,7 +42,7 @@ func (mm *Maxmind) City(ip net.IP) (*geoip2.City, error) {
 	if isEmpty(record) {
 		return nil, ErrNotFound
 	}
-	return record, nil
+	return mm.Maxmind.City(ip)
 }
 
 func isEmpty(r *geoip2.City) bool {
