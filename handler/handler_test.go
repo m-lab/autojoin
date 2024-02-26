@@ -107,7 +107,7 @@ func TestServer_Lookup(t *testing.T) {
 			}
 			resp := &v0.LookupResponse{}
 			testingx.Must(t, json.Unmarshal(rw.Body.Bytes(), resp), "failed to parse response")
-			if rw.Code == http.StatusOK && resp.Lookup != nil && resp.Lookup.IATA != tt.wantIata {
+			if rw.Code == http.StatusOK && (resp.Lookup == nil || resp.Lookup.IATA != tt.wantIata) {
 				t.Errorf("Lookup() returned wrong iata; got %#v, want %s", resp, tt.wantIata)
 			}
 		})
