@@ -128,7 +128,7 @@ func TestServer_Lookup(t *testing.T) {
 		{
 			name:    "error-bad-latlon-headers",
 			iata:    &fakeIataFinder{iata: "jfk"},
-			maxmind: &fakeMaxmind{err: ErrIPNotFound},
+			maxmind: &fakeMaxmind{err: errors.New("fake error")},
 			headers: map[string]string{
 				"X-AppEngine-Country":     "US",
 				"X-AppEngine-CityLatLong": "xx,zz,yy",
@@ -160,8 +160,9 @@ func TestServer_Lookup(t *testing.T) {
 			wantIata: "jfk",
 		},
 		{
-			name: "error-unknown-latlon-headers",
-			iata: &fakeIataFinder{iata: "jfk"},
+			name:    "error-unknown-latlon-headers",
+			iata:    &fakeIataFinder{iata: "jfk"},
+			maxmind: &fakeMaxmind{err: errors.New("fake error")},
 			headers: map[string]string{
 				"X-AppEngine-Country":     "US",
 				"X-AppEngine-CityLatLong": "0.000000,0.000000",
