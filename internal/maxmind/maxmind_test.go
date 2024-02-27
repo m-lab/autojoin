@@ -80,6 +80,12 @@ func TestMaxmind_City(t *testing.T) {
 			ip:      net.IP([]byte{0, 0}), // invalid/corrup input IP.
 			wantErr: true,
 		},
+		{
+			name:    "error-empty-result",
+			src:     "file:testdata/fake-geolite2.tar.gz",
+			ip:      net.ParseIP("192.168.0.1"), // private ip not found in data.
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

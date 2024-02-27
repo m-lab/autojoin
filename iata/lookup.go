@@ -127,3 +127,21 @@ func (c *Client) Lookup(country string, lat, lon float64) (string, error) {
 	// Return closest.
 	return airports[0].iata, nil
 }
+
+// Find returns the row with metadata about the given iata code.
+func (c *Client) Find(iata string) (Row, error) {
+	c.mu.Lock()
+	// Allow safe Load during Lookup.
+	rows := c.rows
+	c.mu.Unlock()
+	iata = strings.ToLower(iata)
+	// Check each known airport for the given one.
+	// Note: this is a linear search since airports are not in a guaranteed order.
+	for i := range rows {
+		r := rows[i]
+		if r.IATA == iata {
+			return r, nil
+		}
+	}
+	return Row{}, ErrNoAirports
+}
