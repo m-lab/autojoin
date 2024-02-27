@@ -181,8 +181,5 @@ func rawIPFromRequest(req *http.Request) (string, error) {
 	}
 	// Use remote client address.
 	hip, _, _ := net.SplitHostPort(req.RemoteAddr)
-	//if hip != "" {
 	return hip, nil
-	//}
-	//return "", ErrIPNotFound
 }
