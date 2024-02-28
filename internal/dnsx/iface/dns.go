@@ -6,13 +6,13 @@ import (
 	"google.golang.org/api/dns/v1"
 )
 
-// Service interface used by the dnsx logic.
+// DNS interface used by the dnsx logic.
 type DNS interface {
 	ResourceRecordSetsGet(ctx context.Context, project string, zone string, name string, type_ string) (*dns.ResourceRecordSet, error)
 	ChangeCreate(ctx context.Context, project string, zone string, change *dns.Change) (*dns.Change, error)
 }
 
-// DNSService implements the Service interface.
+// DNSImpl implements the DNS interface.
 type DNSImpl struct {
 	Service *dns.Service
 }
