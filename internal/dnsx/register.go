@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/m-lab/autojoin/internal/dnsx/iface"
+	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/googleapi"
 )
@@ -21,11 +21,11 @@ var (
 type Manager struct {
 	Project string
 	Zone    string
-	Service iface.DNS
+	Service dnsiface.Service
 }
 
 // NewManager creates a new Manager instance.
-func NewManager(s iface.DNS, project, zone string) *Manager {
+func NewManager(s dnsiface.Service, project, zone string) *Manager {
 	return &Manager{
 		Project: project,
 		Zone:    zone,

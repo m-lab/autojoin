@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/go-test/deep"
-	"github.com/m-lab/autojoin/internal/dnsx/iface"
+	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/googleapi"
 )
@@ -36,7 +36,7 @@ func TestManager_Register(t *testing.T) {
 	tests := []struct {
 		name     string
 		zone     string
-		service  iface.DNS
+		service  dnsiface.Service
 		hostname string
 		ipv4     string
 		ipv6     string
@@ -120,7 +120,7 @@ func TestManager_Delete(t *testing.T) {
 	tests := []struct {
 		name     string
 		zone     string
-		service  iface.DNS
+		service  dnsiface.Service
 		hostname string
 		want     *dns.Change
 		wantErr  bool
