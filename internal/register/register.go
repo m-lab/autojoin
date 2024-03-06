@@ -1,4 +1,4 @@
-package params
+package register
 
 import (
 	"encoding/hex"
@@ -13,8 +13,8 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
-// Register is used internally to pass many parameters.
-type Register struct {
+// Params is used internally to pass many parameters.
+type Params struct {
 	Project string
 	Service string
 	Org     string
@@ -26,7 +26,7 @@ type Register struct {
 }
 
 // CreateRegisterResponse generates a RegisterResponse from the given Register parameters.
-func CreateRegisterResponse(p *Register) v0.RegisterResponse {
+func CreateRegisterResponse(p *Params) v0.RegisterResponse {
 	// Calculate machine, site, and hostname.
 	machine := hex.EncodeToString(net.ParseIP(p.IPv4).To4())
 	site := fmt.Sprintf("%s%d", p.Metro.IATA, p.Network.ASNumber)

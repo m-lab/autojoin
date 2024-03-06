@@ -1,4 +1,4 @@
-package params
+package register
 
 import (
 	"strings"
@@ -15,12 +15,12 @@ import (
 func TestCreateRegisterResponse(t *testing.T) {
 	tests := []struct {
 		name string
-		p    *Register
+		p    *Params
 		want v0.RegisterResponse
 	}{
 		{
 			name: "success",
-			p: &Register{
+			p: &Params{
 				Project: "mlab-sandbox",
 				Service: "ndt",
 				Org:     "bar",
