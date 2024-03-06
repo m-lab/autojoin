@@ -15,41 +15,41 @@ import (
 
 // Register is used internally to pass many parameters.
 type Register struct {
+	Project string
 	Service string
 	Org     string
-	Project string
 	IPv4    string
 	IPv6    string
-	Row     iata.Row
-	Record  *geoip2.City
-	Ann     *annotator.Network
+	Geo     *geoip2.City
+	Metro   iata.Row
+	Network *annotator.Network
 }
 
 // CreateRegisterResponse generates a RegisterResponse from the given Register parameters.
 func CreateRegisterResponse(p *Register) v0.RegisterResponse {
 	// Calculate machine, site, and hostname.
 	machine := hex.EncodeToString(net.ParseIP(p.IPv4).To4())
-	site := fmt.Sprintf("%s%d", p.Row.IATA, p.Ann.ASNumber)
+	site := fmt.Sprintf("%s%d", p.Metro.IATA, p.Network.ASNumber)
 	hostname := fmt.Sprintf("%s-%s-%s.%s.%s.measurement-lab.org", p.Service, site, machine, p.Org, strings.TrimPrefix(p.Project, "mlab-"))
 
 	// Using these, create geo annotation.
 	geo := &annotator.Geolocation{
-		ContinentCode: p.Record.Continent.Code,
-		CountryCode:   p.Record.Country.IsoCode,
-		CountryName:   p.Record.Country.Names["en"],
-		MetroCode:     int64(p.Record.Location.MetroCode),
-		City:          p.Record.City.Names["en"],
-		PostalCode:    p.Record.Postal.Code,
+		ContinentCode: p.Geo.Continent.Code,
+		CountryCode:   p.Geo.Country.IsoCode,
+		CountryName:   p.Geo.Country.Names["en"],
+		MetroCode:     int64(p.Geo.Location.MetroCode),
+		City:          p.Geo.City.Names["en"],
+		PostalCode:    p.Geo.Postal.Code,
 		// Use iata location as authoritative.
-		Latitude:  p.Row.Latitude,
-		Longitude: p.Row.Longitude,
+		Latitude:  p.Metro.Latitude,
+		Longitude: p.Metro.Longitude,
 	}
-	if len(p.Record.Subdivisions) > 0 {
-		geo.Subdivision1ISOCode = p.Record.Subdivisions[0].IsoCode
-		geo.Subdivision1Name = p.Record.Subdivisions[0].Names["en"]
-		if len(p.Record.Subdivisions) > 1 {
-			geo.Subdivision2ISOCode = p.Record.Subdivisions[1].IsoCode
-			geo.Subdivision2Name = p.Record.Subdivisions[1].Names["en"]
+	if len(p.Geo.Subdivisions) > 0 {
+		geo.Subdivision1ISOCode = p.Geo.Subdivisions[0].IsoCode
+		geo.Subdivision1Name = p.Geo.Subdivisions[0].Names["en"]
+		if len(p.Geo.Subdivisions) > 1 {
+			geo.Subdivision2ISOCode = p.Geo.Subdivisions[1].IsoCode
+			geo.Subdivision2Name = p.Geo.Subdivisions[1].Names["en"]
 		}
 	}
 
@@ -62,7 +62,7 @@ func CreateRegisterResponse(p *Register) v0.RegisterResponse {
 					Site:    site,
 					Machine: machine,
 					Geo:     geo,
-					Network: p.Ann,
+					Network: p.Network,
 				},
 				Network: v0.Network{
 					IPv4: p.IPv4,

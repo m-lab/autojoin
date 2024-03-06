@@ -21,12 +21,12 @@ func TestCreateRegisterResponse(t *testing.T) {
 		{
 			name: "success",
 			p: &Register{
+				Project: "mlab-sandbox",
 				Service: "ndt",
 				Org:     "bar",
-				Project: "mlab-sandbox",
 				IPv4:    "192.168.0.1",
 				IPv6:    "",
-				Record: &geoip2.City{
+				Geo: &geoip2.City{
 					Country: struct {
 						GeoNameID         uint              `maxminddb:"geoname_id"`
 						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
@@ -54,13 +54,13 @@ func TestCreateRegisterResponse(t *testing.T) {
 						Longitude: -73,
 					},
 				},
-				Ann: &annotator.Network{
-					ASNumber: 12345,
-				},
-				Row: iata.Row{
+				Metro: iata.Row{
 					IATA:      "lga",
 					Latitude:  -10,
 					Longitude: -10,
+				},
+				Network: &annotator.Network{
+					ASNumber: 12345,
 				},
 			},
 			want: v0.RegisterResponse{
