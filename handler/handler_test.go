@@ -226,9 +226,6 @@ func TestServer_LiveAndReady(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
 		s.Ready(rw, req)
-
-		// TODO: remove once handler has a real implementation.
-		s.Register(rw, req)
 	})
 }
 
