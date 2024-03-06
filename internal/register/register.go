@@ -29,7 +29,7 @@ type Params struct {
 	Network *annotator.Network
 }
 
-// CreateRegisterResponse generates a RegisterResponse from the given Register
+// CreateRegisterResponse generates a RegisterResponse from the given
 // parameters. As an internal package, the caller is required to validate all
 // input parameters.
 func CreateRegisterResponse(p *Params) v0.RegisterResponse {
