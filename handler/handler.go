@@ -154,7 +154,7 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		writeResponse(rw, resp)
 		return
 	}
-	iata := rawIata(req)
+	iata := getClientIata(req)
 	if iata == "" {
 		resp.Error = &v2.Error{
 			Type:   "?iata=<iata>",
@@ -209,7 +209,7 @@ func (s *Server) Ready(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(rw, "ok")
 }
 
-func rawIata(req *http.Request) string {
+func getClientIata(req *http.Request) string {
 	iata := req.URL.Query().Get("iata")
 	if iata != "" && len(iata) == 3 && isValidName(iata) {
 		return strings.ToLower(iata)
