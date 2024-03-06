@@ -13,6 +13,10 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
+var (
+	mlabDomain = "measurement-lab.org"
+)
+
 // Params is used internally to pass many parameters.
 type Params struct {
 	Project string
@@ -30,7 +34,7 @@ func CreateRegisterResponse(p *Params) v0.RegisterResponse {
 	// Calculate machine, site, and hostname.
 	machine := hex.EncodeToString(net.ParseIP(p.IPv4).To4())
 	site := fmt.Sprintf("%s%d", p.Metro.IATA, p.Network.ASNumber)
-	hostname := fmt.Sprintf("%s-%s-%s.%s.%s.measurement-lab.org", p.Service, site, machine, p.Org, strings.TrimPrefix(p.Project, "mlab-"))
+	hostname := fmt.Sprintf("%s-%s-%s.%s.%s.%s", p.Service, site, machine, p.Org, strings.TrimPrefix(p.Project, "mlab-"), mlabDomain)
 
 	// Using these, create geo annotation.
 	geo := &annotator.Geolocation{
