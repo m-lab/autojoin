@@ -11,6 +11,7 @@ import (
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/testingx"
 	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
@@ -252,7 +253,7 @@ func TestServer_Register(t *testing.T) {
 				},
 			},
 			Maxmind: &fakeMaxmind{
-				// NOTE: this riduculous declaration is needed due to anonymous structs in the geoop2 package.
+				// NOTE: this riduculous declaration is needed due to anonymous structs in the geoip2 package.
 				city: &geoip2.City{
 					Country: struct {
 						GeoNameID         uint              `maxminddb:"geoname_id"`
@@ -341,19 +342,28 @@ func TestServer_Register(t *testing.T) {
 			if rw.Code != tt.wantCode {
 				t.Errorf("Register() returned wrong code; got %d, want %d", rw.Code, tt.wantCode)
 			}
+
+			// Check response content is valid.
+			resp := v0.RegisterResponse{}
+			raw := rw.Body.Bytes()
+			err := json.Unmarshal(raw, &resp)
+			testingx.Must(t, err, "failed to unmarshal response")
+
+			// One or the other should be defined.
+			if resp.Error == nil && resp.Registration == nil {
+				t.Errorf("Register() returned empty result; got %q", raw)
+			}
+			// Do not value check error cases.
 			if rw.Code != http.StatusOK {
 				return
 			}
 
-			// Check response content.
-			resp := v0.RegisterResponse{}
-			raw := rw.Body.Bytes()
-			// fmt.Println(string(raw))
-			err := json.Unmarshal(raw, &resp)
-			testingx.Must(t, err, "failed to unmarshal response")
-
 			if resp.Registration.Hostname != tt.wantName {
 				t.Errorf("Register() returned wrong hostname; got %s, want %s", resp.Registration.Hostname, tt.wantName)
+			}
+
+			if _, err := host.Parse(resp.Registration.Hostname); err != nil {
+				t.Errorf("Register() returned unparsable hostname; got %v, want nil", err)
 			}
 
 		})
