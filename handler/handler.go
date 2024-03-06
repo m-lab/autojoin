@@ -115,6 +115,9 @@ func (s *Server) Lookup(rw http.ResponseWriter, req *http.Request) {
 // Register handler is used by autonodes to register their hostname with M-Lab
 // on startup and receive additional needed configuration metadata.
 func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
+	// All replies, errors and successes, should be json.
+	rw.Header().Set("Content-Type", "application/json")
+
 	resp := v0.RegisterResponse{}
 	param := &register.Params{Project: s.Project}
 	param.Service = req.URL.Query().Get("service")
@@ -140,9 +143,8 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		writeResponse(rw, resp)
 		return
 	}
-	// TODO: check value.
-	param.IPv6 = req.URL.Query().Get("ipv6") // optional.
-	param.IPv4 = getClientIP(req)
+	param.IPv6 = checkIP(req.URL.Query().Get("ipv6")) // optional.
+	param.IPv4 = checkIP(getClientIP(req))
 	ip := net.ParseIP(param.IPv4)
 	if ip == nil {
 		resp.Error = &v2.Error{
@@ -177,7 +179,6 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	param.Metro = row
-
 	record, err := s.Maxmind.City(ip)
 	if err != nil {
 		resp.Error = &v2.Error{
@@ -283,6 +284,13 @@ func writeResponse(rw http.ResponseWriter, resp interface{}) {
 	// panic will be caught by the http server handler.
 	rtx.PanicOnError(err, "failed to marshal response")
 	rw.Write(b)
+}
+
+func checkIP(ip string) string {
+	if net.ParseIP(ip) != nil {
+		return ip
+	}
+	return ""
 }
 
 func getClientIP(req *http.Request) string {
