@@ -17,7 +17,7 @@ var (
 	mlabDomain = "measurement-lab.org"
 )
 
-// Params is used internally to pass many parameters.
+// Params is used internally to collect multiple parameters.
 type Params struct {
 	Project string
 	Service string
@@ -29,7 +29,9 @@ type Params struct {
 	Network *annotator.Network
 }
 
-// CreateRegisterResponse generates a RegisterResponse from the given Register parameters.
+// CreateRegisterResponse generates a RegisterResponse from the given Register
+// parameters. As an internal package, the caller is required to validate all
+// input parameters.
 func CreateRegisterResponse(p *Params) v0.RegisterResponse {
 	// Calculate machine, site, and hostname.
 	machine := hex.EncodeToString(net.ParseIP(p.IPv4).To4())
