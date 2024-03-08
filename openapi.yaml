@@ -80,7 +80,8 @@ paths:
           name: organization
           type: string
           required: true
-          description: Organization name. Must be the name of a previously registered organization.
+          description: Organization name. Must be the name of a previously registered
+            organization.
         - in: query
           name: iata
           type: string
@@ -90,14 +91,14 @@ paths:
           name: ipv4
           type: string
           required: false
-          description: IPv4 address. If not provided, the client origin IP is
+          description: IPv4 service address. If not provided, the client origin IP is
             used. If request originates from an IPv6 address, and the ipv4
             parameter is not provided, registration will fail.
         - in: query
           name: ipv6
           type: string
           required: false
-          description: IPv6 address.
+          description: IPv6 service address.
       produces:
         - "application/json"
       responses:
