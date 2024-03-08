@@ -9,6 +9,7 @@ import (
 
 	"github.com/m-lab/autojoin/handler"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/maxmind"
 	"github.com/m-lab/go/content"
 	"github.com/m-lab/go/flagx"
@@ -20,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"google.golang.org/api/dns/v1"
 )
 
 var (
@@ -58,6 +60,11 @@ func main() {
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
 	defer mainCancel()
 
+	// Google Application Default Credentials
+	ds, err := dns.NewService(mainCtx)
+	rtx.Must(err, "failed to create new dns service")
+	d := &dnsiface.CloudDNSService{Service: ds}
+
 	prom := prometheusx.MustServeMetrics()
 	defer prom.Close()
 
@@ -71,7 +78,7 @@ func main() {
 	rtx.Must(err, "Could not load routeview v4 URL")
 	asn := asnannotator.NewIPv4(mainCtx, rvsrc)
 
-	s := handler.NewServer(project, i, mm, asn)
+	s := handler.NewServer(project, i, mm, asn, d)
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)
