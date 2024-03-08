@@ -1,0 +1,74 @@
+# Copyright 2024, autojoin Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+swagger: "2.0"
+info:
+  description: |-
+    The autojoin API provides dynamic registration of services that are part of
+    M-Lab's global measurement platform.
+  title: "M-Lab Autojoin API ({{DEPLOYMENT}})"
+  version: "0.1.0"
+host: "autojoin-dot-{{PROJECT}}.appspot.com"
+
+consumes:
+- "application/json"
+produces:
+- "application/json"
+schemes:
+- "https"
+
+paths:
+  # DOES NOT require an API key.
+  "/autojoin/v0/lookup":
+    get:
+      description: |-
+        Find the nearest IATA location based on user parameters.
+
+        This resource does not require an API key.
+      operationId: "autojoin-v0-lookup"
+      produces:
+      - "application/json"
+      tags:
+        - public
+
+  ################################################################################
+  # Requires authorization with an API key.
+  "/autojoin/v0/node/register":
+    get:
+      description: |-
+        Register a service with M-Lab.
+
+        This resource requires an API key.
+      operationId: "autojoin-v0-node-register"
+      produces:
+      - "application/json"
+      security:
+      - api_key: []
+      tags:
+        - public
+
+securityDefinitions:
+  # This section configures basic authentication with an API key.
+  # Paths configured with api_key security require an API key for all requests.
+  api_key:
+    type: "apiKey"
+    description: |-
+      An API key for your organization, restricted to the Autojoin API. API keys
+      are allocated by M-Lab for use by a registered organization.
+    name: "key"
+    in: "query"
+
+tags:
+  - name: public
+    description: Public API.
