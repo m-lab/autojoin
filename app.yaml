@@ -6,10 +6,9 @@ runtime_config:
   operating_system: "ubuntu22"
   runtime_version: "1.21"
 
-# TODO(soltesz): enable endpoints configuration.
-#endpoints_api_service:
-#  name: locate-dot-{{PROJECT}}.appspot.com
-#  rollout_strategy: managed
+endpoints_api_service:
+  name: autojoin-dot-{{PROJECT_ID}}.appspot.com
+  rollout_strategy: managed
 
 resources:
   cpu: 2

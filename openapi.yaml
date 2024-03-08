@@ -64,7 +64,7 @@ paths:
   ################################################################################
   # Requires authorization with an API key.
   "/autojoin/v0/node/register":
-    get:
+    post:
       description: |-
         Register a service with M-Lab.
 
@@ -104,7 +104,7 @@ paths:
         '200':
           description: Registration was successful.
       security:
-      - api_key: []
+        - api_key: []
       tags:
         - public
 
