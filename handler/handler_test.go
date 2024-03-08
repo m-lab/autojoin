@@ -11,10 +11,12 @@ import (
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/testingx"
 	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
+	"google.golang.org/api/dns/v1"
 )
 
 type fakeIataFinder struct {
@@ -59,6 +61,17 @@ func (f *fakeAsn) AnnotateIP(src string) *annotator.Network {
 	return f.ann
 }
 func (f *fakeAsn) Reload(ctx context.Context) {}
+
+type fakeDNS struct {
+	chgErr error
+}
+
+func (f *fakeDNS) ResourceRecordSetsGet(ctx context.Context, project string, zone string, name string, rtype string) (*dns.ResourceRecordSet, error) {
+	return nil, nil
+}
+func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string, change *dns.Change) (*dns.Change, error) {
+	return nil, f.chgErr
+}
 
 func TestServer_Lookup(t *testing.T) {
 	tests := []struct {
@@ -189,7 +202,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{})
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{})
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -211,7 +224,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{})
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{})
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -221,7 +234,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{})
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{})
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -235,6 +248,7 @@ func TestServer_Register(t *testing.T) {
 		Iata     IataFinder
 		Maxmind  MaxmindFinder
 		ASN      ASNFinder
+		DNS      dnsiface.Service
 		params   string
 		wantName string
 		wantCode int
@@ -285,6 +299,7 @@ func TestServer_Register(t *testing.T) {
 					ASNumber: 12345,
 				},
 			},
+			DNS:      &fakeDNS{},
 			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 			wantCode: http.StatusOK,
 		},
@@ -326,11 +341,55 @@ func TestServer_Register(t *testing.T) {
 			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=abc",
 			wantCode: http.StatusInternalServerError,
 		},
+		{
+			name:   "error-registration",
+			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			Iata: &fakeIataFinder{
+				findRow: iata.Row{IATA: "lga", Latitude: -10, Longitude: -10},
+			},
+			Maxmind: &fakeMaxmind{
+				city: &geoip2.City{
+					Country: struct {
+						GeoNameID         uint              `maxminddb:"geoname_id"`
+						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
+						IsoCode           string            `maxminddb:"iso_code"`
+						Names             map[string]string `maxminddb:"names"`
+					}{
+						IsoCode: "US",
+					},
+					Subdivisions: []struct {
+						GeoNameID uint              `maxminddb:"geoname_id"`
+						IsoCode   string            `maxminddb:"iso_code"`
+						Names     map[string]string `maxminddb:"names"`
+					}{
+						{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
+						{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
+					},
+					Location: struct {
+						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
+						Latitude       float64 `maxminddb:"latitude"`
+						Longitude      float64 `maxminddb:"longitude"`
+						MetroCode      uint    `maxminddb:"metro_code"`
+						TimeZone       string  `maxminddb:"time_zone"`
+					}{
+						Latitude:  41,
+						Longitude: -73,
+					},
+				},
+			},
+			ASN: &fakeAsn{
+				ann: &annotator.Network{
+					ASNumber: 12345,
+				},
+			},
+			DNS:      &fakeDNS{chgErr: errors.New("fake change error")},
+			wantCode: http.StatusInternalServerError,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
