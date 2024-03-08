@@ -7,18 +7,24 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
+	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/register"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
+	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
 )
 
 var (
 	errLocationNotFound = errors.New("location not found")
 	errLocationFormat   = errors.New("location could not be parsed")
+
+	validName = regexp.MustCompile(`[a-z0-9]+`)
 )
 
 // Server maintains shared state for the server.
@@ -26,6 +32,13 @@ type Server struct {
 	Project string
 	Iata    IataFinder
 	Maxmind MaxmindFinder
+	ASN     ASNFinder
+}
+
+// ASNFinder is an interface used by the Server to manage ASN information.
+type ASNFinder interface {
+	AnnotateIP(src string) *annotator.Network
+	Reload(ctx context.Context)
 }
 
 // MaxmindFinder is an interface used by the Server to manage Maxmind information.
@@ -37,15 +50,17 @@ type MaxmindFinder interface {
 // IataFinder is an interface used by the Server to manage IATA information.
 type IataFinder interface {
 	Lookup(country string, lat, lon float64) (string, error)
+	Find(iata string) (iata.Row, error)
 	Load(ctx context.Context) error
 }
 
 // NewServer creates a new Server instance for request handling.
-func NewServer(project string, finder IataFinder, maxmind MaxmindFinder) *Server {
+func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder) *Server {
 	return &Server{
 		Project: project,
 		Iata:    finder,
 		Maxmind: maxmind,
+		ASN:     asn,
 	}
 }
 
@@ -57,7 +72,6 @@ func (s *Server) Reload(ctx context.Context) {
 
 // Lookup is a handler used to find the nearest IATA given client IP or lat/lon metadata.
 func (s *Server) Lookup(rw http.ResponseWriter, req *http.Request) {
-
 	resp := v0.LookupResponse{}
 	country, err := s.getCountry(req)
 	if country == "" || err != nil {
@@ -98,9 +112,92 @@ func (s *Server) Lookup(rw http.ResponseWriter, req *http.Request) {
 	writeResponse(rw, resp)
 }
 
-// Register is a handler used by autonodes to register with M-Lab on startup.
+// Register handler is used by autonodes to register their hostname with M-Lab
+// on startup and receive additional needed configuration metadata.
 func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(rw, "TODO(soltesz): complete register logic\n")
+	// All replies, errors and successes, should be json.
+	rw.Header().Set("Content-Type", "application/json")
+
+	resp := v0.RegisterResponse{}
+	param := &register.Params{Project: s.Project}
+	param.Service = req.URL.Query().Get("service")
+	if !isValidName(param.Service) {
+		resp.Error = &v2.Error{
+			Type:   "?service=<service>",
+			Title:  "could not determine service from request",
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	// TODO(soltesz): discover this from a given API key.
+	param.Org = req.URL.Query().Get("organization")
+	if !isValidName(param.Org) {
+		resp.Error = &v2.Error{
+			Type:   "?organization=<organization>",
+			Title:  "could not determine organization from request",
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	param.IPv6 = checkIP(req.URL.Query().Get("ipv6")) // optional.
+	param.IPv4 = checkIP(getClientIP(req))
+	ip := net.ParseIP(param.IPv4)
+	if ip == nil {
+		resp.Error = &v2.Error{
+			Type:   "?ipv4=<ipv4>",
+			Title:  "could not determine client ip from request",
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	iata := getClientIata(req)
+	if iata == "" {
+		resp.Error = &v2.Error{
+			Type:   "?iata=<iata>",
+			Title:  "could not determine iata from request",
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	row, err := s.Iata.Find(iata)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "iata.find",
+			Title:  "could not find given iata in dataset",
+			Status: http.StatusInternalServerError,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	param.Metro = row
+	record, err := s.Maxmind.City(ip)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "maxmind.city",
+			Title:  "could not find city metadata from ip",
+			Status: http.StatusInternalServerError,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	param.Geo = record
+	param.Network = s.ASN.AnnotateIP(param.IPv4)
+	r := register.CreateRegisterResponse(param)
+
+	// TODO: register hostname in Cloud DNS.
+
+	b, _ := json.MarshalIndent(r, "", " ")
+	rw.Write(b)
 }
 
 // Live reports whether the system is live.
@@ -111,6 +208,24 @@ func (s *Server) Live(rw http.ResponseWriter, req *http.Request) {
 // Ready reports whether the server is ready.
 func (s *Server) Ready(rw http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(rw, "ok")
+}
+
+func getClientIata(req *http.Request) string {
+	iata := req.URL.Query().Get("iata")
+	if iata != "" && len(iata) == 3 && isValidName(iata) {
+		return strings.ToLower(iata)
+	}
+	return ""
+}
+
+func isValidName(s string) bool {
+	if s == "" {
+		return false
+	}
+	if len(s) > 10 {
+		return false
+	}
+	return validName.MatchString(s)
 }
 
 func (s *Server) getCountry(req *http.Request) (string, error) {
@@ -169,6 +284,13 @@ func writeResponse(rw http.ResponseWriter, resp interface{}) {
 	// panic will be caught by the http server handler.
 	rtx.PanicOnError(err, "failed to marshal response")
 	rw.Write(b)
+}
+
+func checkIP(ip string) string {
+	if net.ParseIP(ip) != nil {
+		return ip
+	}
+	return ""
 }
 
 func getClientIP(req *http.Request) string {
