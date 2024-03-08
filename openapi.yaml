@@ -1,0 +1,125 @@
+# Copyright 2024, autojoin Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+swagger: "2.0"
+info:
+  description: |-
+    The autojoin API provides dynamic registration of services that are part of
+    M-Lab's global measurement platform.
+  title: "M-Lab Autojoin API ({{DEPLOYMENT}})"
+  version: "0.1.0"
+host: "autojoin-dot-{{PROJECT}}.appspot.com"
+
+consumes:
+- "application/json"
+produces:
+- "application/json"
+schemes:
+- "https"
+
+paths:
+  # DOES NOT require an API key.
+  "/autojoin/v0/lookup":
+    get:
+      description: |-
+        Find the nearest IATA location based on user parameters.
+
+        This resource does not require an API key.
+      operationId: "autojoin-v0-lookup"
+      parameters:
+        - in: query
+          name: country
+          type: string
+          required: false
+          description: Country. If provided, overrides country hints from AppEngine.
+        - in: query
+          name: lat
+          type: number
+          required: false
+          description: Latitude. If provided, overrides location hints from AppEngine.
+        - in: query
+          name: lon
+          type: number
+          required: false
+          description: Longitude. If provided, overrides location hints from AppEngine.
+      produces:
+        - "application/json"
+      responses:
+        '200':
+          description: Registration was successful.
+      tags:
+        - public
+
+  ################################################################################
+  # Requires authorization with an API key.
+  "/autojoin/v0/node/register":
+    post:
+      description: |-
+        Register a service with M-Lab.
+
+        This resource requires an API key.
+      operationId: "autojoin-v0-node-register"
+      parameters:
+        - in: query
+          name: service
+          type: string
+          required: true
+          description: Service name.
+        - in: query
+          name: organization
+          type: string
+          required: true
+          description: Organization name. Must be the name of a previously registered
+            organization.
+        - in: query
+          name: iata
+          type: string
+          required: true
+          description: IATA name. A known, three letter IATA code returned by lookup.
+        - in: query
+          name: ipv4
+          type: string
+          required: false
+          description: IPv4 service address. If not provided, the client origin IP is
+            used. If request originates from an IPv6 address, and the ipv4
+            parameter is not provided, registration will fail.
+        - in: query
+          name: ipv6
+          type: string
+          required: false
+          description: IPv6 service address.
+      produces:
+        - "application/json"
+      responses:
+        '200':
+          description: Registration was successful.
+      security:
+        - api_key: []
+      tags:
+        - public
+
+securityDefinitions:
+  # This section configures basic authentication with an API key.
+  # Paths configured with api_key security require an API key for all requests.
+  api_key:
+    type: "apiKey"
+    description: |-
+      An API key for your organization, restricted to the Autojoin API. API keys
+      are allocated by M-Lab for use by a registered organization.
+    name: "key"
+    in: "query"
+
+tags:
+  - name: public
+    description: Public API.
