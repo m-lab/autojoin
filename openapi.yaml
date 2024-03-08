@@ -39,6 +39,9 @@ paths:
       operationId: "autojoin-v0-lookup"
       produces:
       - "application/json"
+      responses:
+        '200':
+          description: Registration was successful.
       tags:
         - public
 
@@ -53,6 +56,9 @@ paths:
       operationId: "autojoin-v0-node-register"
       produces:
       - "application/json"
+      responses:
+        '200':
+          description: Registration was successful.
       security:
       - api_key: []
       tags:
