@@ -29,6 +29,12 @@ type Params struct {
 	Network *annotator.Network
 }
 
+// OrgZone generates the organization zone name based the organization and project.
+func OrgZone(org, project string) string {
+	// NOTE: prefix prevents name collision with existing zones when the org is "mlab".
+	return "autojoin-" + org + "-" + strings.TrimPrefix(project, "mlab-") + "-measurement-lab-org"
+}
+
 // CreateRegisterResponse generates a RegisterResponse from the given
 // parameters. As an internal package, the caller is required to validate all
 // input parameters.
