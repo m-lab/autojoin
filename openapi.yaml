@@ -37,8 +37,24 @@ paths:
 
         This resource does not require an API key.
       operationId: "autojoin-v0-lookup"
+      parameters:
+        - in: query
+          name: country
+          type: string
+          required: false
+          description: Country. If provided, overrides country hints from AppEngine.
+        - in: query
+          name: lat
+          type: number
+          required: false
+          description: Latitude. If provided, overrides location hints from AppEngine.
+        - in: query
+          name: lon
+          type: number
+          required: false
+          description: Longitude. If provided, overrides location hints from AppEngine.
       produces:
-      - "application/json"
+        - "application/json"
       responses:
         '200':
           description: Registration was successful.
@@ -54,8 +70,36 @@ paths:
 
         This resource requires an API key.
       operationId: "autojoin-v0-node-register"
+      parameters:
+        - in: query
+          name: service
+          type: string
+          required: true
+          description: Service name.
+        - in: query
+          name: organization
+          type: string
+          required: true
+          description: Organization name. Must be the name of a previously registered organization.
+        - in: query
+          name: iata
+          type: string
+          required: true
+          description: IATA name. A known, three letter IATA code returned by lookup.
+        - in: query
+          name: ipv4
+          type: string
+          required: false
+          description: IPv4 address. If not provided, the client origin IP is
+            used. If request originates from an IPv6 address, and the ipv4
+            parameter is not provided, registration will fail.
+        - in: query
+          name: ipv6
+          type: string
+          required: false
+          description: IPv6 address.
       produces:
-      - "application/json"
+        - "application/json"
       responses:
         '200':
           description: Registration was successful.
