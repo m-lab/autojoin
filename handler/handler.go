@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -207,6 +208,7 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 			Title:  "could not register dynamic hostname",
 			Status: http.StatusInternalServerError,
 		}
+		log.Println("dns register failure:", err)
 		rw.WriteHeader(resp.Error.Status)
 		writeResponse(rw, resp)
 		return
