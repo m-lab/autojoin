@@ -46,6 +46,9 @@ func (d *Manager) Register(ctx context.Context, hostname, ipv4, ipv6 string) (*d
 	}
 	for _, record := range records {
 		add := false
+		if record.ip == "" {
+			continue
+		}
 		rr, err := d.get(ctx, hostname, record.rtype)
 		if rr != nil {
 			// Found a registration.

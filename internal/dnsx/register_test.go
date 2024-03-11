@@ -44,7 +44,25 @@ func TestManager_Register(t *testing.T) {
 		wantErr  bool
 	}{
 		{
-			name: "success",
+			name:     "success",
+			zone:     "sandbox-measurement-lab-org",
+			service:  &fakeDNS{getErr: &googleapi.Error{Code: 404}},
+			hostname: "foo.sandbox.measurement-lab.org",
+			ipv4:     "192.168.0.1",
+			ipv6:     "",
+			want: &dns.Change{
+				Additions: []*dns.ResourceRecordSet{
+					{
+						Name:    "foo.sandbox.measurement-lab.org",
+						Type:    "A",
+						Ttl:     300,
+						Rrdatas: []string{"192.168.0.1"},
+					},
+				},
+			},
+		},
+		{
+			name: "success-ipv6",
 			zone: "sandbox-measurement-lab-org",
 			service: &fakeDNS{record: []*dns.ResourceRecordSet{
 				{
