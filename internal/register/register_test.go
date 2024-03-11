@@ -65,7 +65,7 @@ func TestCreateRegisterResponse(t *testing.T) {
 			},
 			want: v0.RegisterResponse{
 				Registration: &v0.Registration{
-					Hostname: "ndt-lga12345-c0a80001.bar.sandbox.measurement-lab.org.",
+					Hostname: "ndt-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 					Annotation: &v0.ServerAnnotation{
 						Annotation: annotator.ServerAnnotations{
 							Site:    "lga12345",
@@ -91,7 +91,7 @@ func TestCreateRegisterResponse(t *testing.T) {
 					Heartbeat: &v2.Registration{
 						CountryCode: "US",
 						Experiment:  "ndt",
-						Hostname:    "ndt-lga12345-c0a80001.bar.sandbox.measurement-lab.org.",
+						Hostname:    "ndt-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 						Latitude:    -10,
 						Longitude:   -10,
 						Machine:     "c0a80001",

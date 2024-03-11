@@ -201,7 +201,7 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 
 	// Register the hostname under the organization zone.
 	m := dnsx.NewManager(s.DNS, s.Project, register.OrgZone(param.Org, s.Project))
-	_, err = m.Register(req.Context(), r.Registration.Hostname, param.IPv4, param.IPv6)
+	_, err = m.Register(req.Context(), r.Registration.Hostname+".", param.IPv4, param.IPv6)
 	if err != nil {
 		resp.Error = &v2.Error{
 			Type:   "dns.register",
