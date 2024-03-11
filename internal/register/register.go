@@ -42,7 +42,7 @@ func CreateRegisterResponse(p *Params) v0.RegisterResponse {
 	// Calculate machine, site, and hostname.
 	machine := hex.EncodeToString(net.ParseIP(p.IPv4).To4())
 	site := fmt.Sprintf("%s%d", p.Metro.IATA, p.Network.ASNumber)
-	hostname := fmt.Sprintf("%s-%s-%s.%s.%s.%s", p.Service, site, machine, p.Org, strings.TrimPrefix(p.Project, "mlab-"), mlabDomain)
+	hostname := fmt.Sprintf("%s-%s-%s.%s.%s.%s.", p.Service, site, machine, p.Org, strings.TrimPrefix(p.Project, "mlab-"), mlabDomain)
 
 	// Using these, create geo annotation.
 	geo := &annotator.Geolocation{
