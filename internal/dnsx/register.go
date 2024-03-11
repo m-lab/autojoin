@@ -3,6 +3,7 @@ package dnsx
 import (
 	"context"
 	"errors"
+	"log"
 
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"google.golang.org/api/dns/v1"
@@ -65,6 +66,7 @@ func (d *Manager) Register(ctx context.Context, hostname, ipv4, ipv6 string) (*d
 			add = true
 		}
 		// If the error is because the record was not found, add it. Ignore other errors.
+		log.Printf("dns get record: %#v", err)
 		if add || (err != nil && isNotFound(err)) {
 			// Register.
 			chg.Additions = append(chg.Additions,
@@ -120,6 +122,7 @@ func (d *Manager) get(ctx context.Context, hostname, rtype string) (*dns.Resourc
 func isNotFound(err error) bool {
 	var gerr *googleapi.Error
 	if errors.As(err, &gerr) {
+		log.Printf("googleapi.Error: %#v", gerr)
 		return gerr.Code == 404
 	}
 	return false
