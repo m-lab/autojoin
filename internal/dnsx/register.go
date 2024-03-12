@@ -36,6 +36,7 @@ func NewManager(s dnsiface.Service, project, zone string) *Manager {
 
 // Register creates a new resource record for hostname with the given ipv4 and ipv6 adresses.
 func (d *Manager) Register(ctx context.Context, hostname, ipv4, ipv6 string) (*dns.Change, error) {
+	var err error
 	chg := &dns.Change{}
 	records := []struct {
 		ip    string
@@ -49,7 +50,8 @@ func (d *Manager) Register(ctx context.Context, hostname, ipv4, ipv6 string) (*d
 		if record.ip == "" {
 			continue
 		}
-		rr, err := d.get(ctx, hostname, record.rtype)
+		var rr *dns.ResourceRecordSet
+		rr, err = d.get(ctx, hostname, record.rtype)
 		if rr != nil {
 			// Found a registration.
 			if len(rr.Rrdatas) == 1 && rr.Rrdatas[0] == record.ip {
@@ -81,6 +83,10 @@ func (d *Manager) Register(ctx context.Context, hostname, ipv4, ipv6 string) (*d
 				},
 			)
 		}
+	}
+	if chg.Additions == nil && chg.Deletions == nil {
+		// Without any actions, the ChangeCreate will fail with an error.
+		return nil, err
 	}
 	// Apply changes.
 	result, err := d.Service.ChangeCreate(ctx, d.Project, d.Zone, chg)

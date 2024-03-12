@@ -29,6 +29,9 @@ func (f *fakeDNS) ResourceRecordSetsGet(ctx context.Context, project string, zon
 }
 
 func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string, change *dns.Change) (*dns.Change, error) {
+	if change.Additions == nil && change.Deletions == nil {
+		return nil, errors.New("fake change create error")
+	}
 	return change, f.chgErr
 }
 
