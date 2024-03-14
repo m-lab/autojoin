@@ -32,7 +32,10 @@ func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string,
 	if change.Additions == nil && change.Deletions == nil {
 		return nil, errors.New("fake change create error")
 	}
-	return change, f.chgErr
+	if f.chgErr != nil {
+		return nil, f.chgErr
+	}
+	return change, nil
 }
 
 func TestManager_Register(t *testing.T) {
@@ -99,6 +102,45 @@ func TestManager_Register(t *testing.T) {
 						Type:    "A",
 						Ttl:     300,
 						Rrdatas: []string{"127.0.0.1"},
+					},
+				},
+			},
+		},
+		{
+			name: "success-ipv6-replace",
+			zone: "sandbox-measurement-lab-org",
+			service: &fakeDNS{record: []*dns.ResourceRecordSet{
+				{
+					Name:    "foo.sandbox.measurement-lab.org",
+					Type:    "A",
+					Ttl:     300,
+					Rrdatas: []string{"192.168.0.1"}, // will be kept.
+				},
+				{
+					Name:    "foo.sandbox.measurement-lab.org",
+					Type:    "AAAA",
+					Ttl:     300,
+					Rrdatas: []string{"abc:def::1"}, // will be removed.
+				},
+			}},
+			hostname: "foo.sandbox.measurement-lab.org",
+			ipv4:     "192.168.0.1",
+			ipv6:     "fe80::1002:161f:ae39:a2c9",
+			want: &dns.Change{
+				Additions: []*dns.ResourceRecordSet{
+					{
+						Name:    "foo.sandbox.measurement-lab.org",
+						Type:    "AAAA",
+						Ttl:     300,
+						Rrdatas: []string{"fe80::1002:161f:ae39:a2c9"},
+					},
+				},
+				Deletions: []*dns.ResourceRecordSet{
+					{
+						Name:    "foo.sandbox.measurement-lab.org",
+						Type:    "AAAA",
+						Ttl:     300,
+						Rrdatas: []string{"abc:def::1"},
 					},
 				},
 			},
