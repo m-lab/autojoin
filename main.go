@@ -9,6 +9,7 @@ import (
 
 	"github.com/m-lab/autojoin/handler"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/maxmind"
 	"github.com/m-lab/go/content"
 	"github.com/m-lab/go/flagx"
@@ -20,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"google.golang.org/api/dns/v1"
 )
 
 var (
@@ -61,9 +63,14 @@ func main() {
 	prom := prometheusx.MustServeMetrics()
 	defer prom.Close()
 
+	// Setup DNS service.
+	ds, err := dns.NewService(mainCtx)
+	rtx.Must(err, "failed to create new dns service")
+	d := &dnsiface.CloudDNSService{Service: ds}
+
+	// Setup IATA, maxmind, and asn sources.
 	i, err := iata.New(mainCtx, iataSrc.URL)
 	rtx.Must(err, "failed to load iata dataset")
-
 	mmsrc, err := content.FromURL(mainCtx, maxmindSrc.URL)
 	rtx.Must(err, "failed to load maxmindurl: %s", maxmindSrc.URL)
 	mm := maxmind.NewMaxmind(mmsrc)
@@ -71,7 +78,8 @@ func main() {
 	rtx.Must(err, "Could not load routeview v4 URL")
 	asn := asnannotator.NewIPv4(mainCtx, rvsrc)
 
-	s := handler.NewServer(project, i, mm, asn)
+	// Create server.
+	s := handler.NewServer(project, i, mm, asn, d)
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)

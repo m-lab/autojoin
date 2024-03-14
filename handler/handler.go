@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"regexp"
@@ -13,6 +14,8 @@ import (
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/dnsx"
+	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/register"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
@@ -33,6 +36,7 @@ type Server struct {
 	Iata    IataFinder
 	Maxmind MaxmindFinder
 	ASN     ASNFinder
+	DNS     dnsiface.Service
 }
 
 // ASNFinder is an interface used by the Server to manage ASN information.
@@ -55,12 +59,13 @@ type IataFinder interface {
 }
 
 // NewServer creates a new Server instance for request handling.
-func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder) *Server {
+func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder, ds dnsiface.Service) *Server {
 	return &Server{
 		Project: project,
 		Iata:    finder,
 		Maxmind: maxmind,
 		ASN:     asn,
+		DNS:     ds,
 	}
 }
 
@@ -194,7 +199,20 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	param.Network = s.ASN.AnnotateIP(param.IPv4)
 	r := register.CreateRegisterResponse(param)
 
-	// TODO: register hostname in Cloud DNS.
+	// Register the hostname under the organization zone.
+	m := dnsx.NewManager(s.DNS, s.Project, register.OrgZone(param.Org, s.Project))
+	_, err = m.Register(req.Context(), r.Registration.Hostname+".", param.IPv4, param.IPv6)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "dns.register",
+			Title:  "could not register dynamic hostname",
+			Status: http.StatusInternalServerError,
+		}
+		log.Println("dns register failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
 
 	b, _ := json.MarshalIndent(r, "", " ")
 	rw.Write(b)
