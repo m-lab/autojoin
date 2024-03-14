@@ -60,17 +60,17 @@ func main() {
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
 	defer mainCancel()
 
-	// Google Application Default Credentials
+	prom := prometheusx.MustServeMetrics()
+	defer prom.Close()
+
+	// Setup DNS service.
 	ds, err := dns.NewService(mainCtx)
 	rtx.Must(err, "failed to create new dns service")
 	d := &dnsiface.CloudDNSService{Service: ds}
 
-	prom := prometheusx.MustServeMetrics()
-	defer prom.Close()
-
+	// Setup IATA, maxmind, and asn sources.
 	i, err := iata.New(mainCtx, iataSrc.URL)
 	rtx.Must(err, "failed to load iata dataset")
-
 	mmsrc, err := content.FromURL(mainCtx, maxmindSrc.URL)
 	rtx.Must(err, "failed to load maxmindurl: %s", maxmindSrc.URL)
 	mm := maxmind.NewMaxmind(mmsrc)
@@ -78,6 +78,7 @@ func main() {
 	rtx.Must(err, "Could not load routeview v4 URL")
 	asn := asnannotator.NewIPv4(mainCtx, rvsrc)
 
+	// Create server.
 	s := handler.NewServer(project, i, mm, asn, d)
 	go func() {
 		// Load once.
