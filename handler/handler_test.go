@@ -64,10 +64,11 @@ func (f *fakeAsn) Reload(ctx context.Context) {}
 
 type fakeDNS struct {
 	chgErr error
+	getErr error
 }
 
 func (f *fakeDNS) ResourceRecordSetsGet(ctx context.Context, project string, zone string, name string, rtype string) (*dns.ResourceRecordSet, error) {
-	return nil, nil
+	return nil, f.getErr
 }
 func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string, change *dns.Change) (*dns.Change, error) {
 	return nil, f.chgErr
@@ -382,7 +383,7 @@ func TestServer_Register(t *testing.T) {
 					ASNumber: 12345,
 				},
 			},
-			DNS:      &fakeDNS{chgErr: errors.New("fake change error")},
+			DNS:      &fakeDNS{getErr: errors.New("fake get error")},
 			wantCode: http.StatusInternalServerError,
 		},
 	}
