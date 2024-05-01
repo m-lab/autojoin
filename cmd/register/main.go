@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	endpoint = flag.String("endpoint", registerEndpoint, "Autojoin service URL")
+	endpoint = flag.String("endpoint", registerEndpoint, "Endpoint of the autojoin service")
 	apiKey   = flag.String("key", "", "API key for the autojoin service")
 	service  = flag.String("service", "ndt", "Service name to register with the autojoin service")
 	org      = flag.String("organization", "", "Organization to register with the autojoin service")
@@ -31,7 +31,7 @@ func main() {
 	flag.Parse()
 
 	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || *iata == "" {
-		panic("-key, -service, -org and -iata are required.")
+		panic("-key, -service, -organization, and -iata are required.")
 	}
 
 	// Make a HTTP call to the autojoin service to register this node.
