@@ -8,23 +8,28 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/go/rtx"
+	v2 "github.com/m-lab/locate/api/v2"
 )
 
 const (
-	registerEndpoint = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register"
+	registerEndpoint   = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register"
+	heartbeatFilename  = "registration.json"
+	annotationFilename = "annotation.json"
 )
 
 var (
-	endpoint = flag.String("endpoint", registerEndpoint, "Endpoint of the autojoin service")
-	apiKey   = flag.String("key", "", "API key for the autojoin service")
-	service  = flag.String("service", "ndt", "Service name to register with the autojoin service")
-	org      = flag.String("organization", "", "Organization to register with the autojoin service")
-	iata     = flag.String("iata", "", "IATA code to register with the autojoin service")
-	ipv4     = flag.String("ipv4", "", "IPv4 address to register with the autojoin service")
-	ipv6     = flag.String("ipv6", "", "IPv6 address to register with the autojoin service")
+	endpoint   = flag.String("endpoint", registerEndpoint, "Endpoint of the autojoin service")
+	apiKey     = flag.String("key", "", "API key for the autojoin service")
+	service    = flag.String("service", "ndt", "Service name to register with the autojoin service")
+	org        = flag.String("organization", "", "Organization to register with the autojoin service")
+	iata       = flag.String("iata", "", "IATA code to register with the autojoin service")
+	ipv4       = flag.String("ipv4", "", "IPv4 address to register with the autojoin service")
+	ipv6       = flag.String("ipv6", "", "IPv6 address to register with the autojoin service")
+	outputPath = flag.String("output", "", "Output folder")
 )
 
 func main() {
@@ -64,14 +69,16 @@ func main() {
 		panic(r.Error.Title)
 	}
 
+	heartbeat := map[string]v2.Registration{r.Registration.Hostname: *r.Registration.Heartbeat}
+
 	// Marshall and write the heartbeat and annotation config files.
-	heartbeat, err := json.Marshal(r.Registration.Heartbeat)
+	heartbeatJSON, err := json.Marshal(heartbeat)
 	rtx.Must(err, "Failed to marshal heartbeat")
 	annotation, err := json.Marshal(r.Registration.Annotation)
 	rtx.Must(err, "Failed to marshal annotation")
 
-	err = os.WriteFile("heartbeat.json", heartbeat, 0644)
+	err = os.WriteFile(path.Join(*outputPath, heartbeatFilename), heartbeatJSON, 0644)
 	rtx.Must(err, "Failed to write heartbeat file")
-	err = os.WriteFile("annotation.json", annotation, 0644)
+	err = os.WriteFile(path.Join(*outputPath, annotationFilename), annotation, 0644)
 	rtx.Must(err, "Failed to write annotation file")
 }
