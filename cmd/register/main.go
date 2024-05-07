@@ -19,6 +19,7 @@ const (
 	registerEndpoint   = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register"
 	heartbeatFilename  = "registration.json"
 	annotationFilename = "annotation.json"
+	hostnameFilename   = "hostname"
 )
 
 var (
@@ -70,6 +71,10 @@ func main() {
 	}
 
 	heartbeat := map[string]v2.Registration{r.Registration.Hostname: *r.Registration.Heartbeat}
+
+	// Write the hostname to a file.
+	err = os.WriteFile(path.Join(*outputPath, hostnameFilename), []byte(r.Registration.Hostname), 0644)
+	rtx.Must(err, "Failed to write hostname to file")
 
 	// Marshall and write the heartbeat and annotation config files.
 	heartbeatJSON, err := json.Marshal(heartbeat)
