@@ -13,6 +13,7 @@ import (
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
+	"github.com/m-lab/uuid-annotator/annotator"
 )
 
 const (
@@ -71,6 +72,7 @@ func main() {
 	}
 
 	heartbeat := map[string]v2.Registration{r.Registration.Hostname: *r.Registration.Heartbeat}
+	annotation := map[string]annotator.ServerAnnotations{r.Registration.Hostname: r.Registration.Annotation.Annotation}
 
 	// Write the hostname to a file.
 	err = os.WriteFile(path.Join(*outputPath, hostnameFilename), []byte(r.Registration.Hostname), 0644)
@@ -79,11 +81,11 @@ func main() {
 	// Marshall and write the heartbeat and annotation config files.
 	heartbeatJSON, err := json.Marshal(heartbeat)
 	rtx.Must(err, "Failed to marshal heartbeat")
-	annotation, err := json.Marshal(r.Registration.Annotation)
+	annotationJSON, err := json.Marshal(annotation)
 	rtx.Must(err, "Failed to marshal annotation")
 
 	err = os.WriteFile(path.Join(*outputPath, heartbeatFilename), heartbeatJSON, 0644)
 	rtx.Must(err, "Failed to write heartbeat file")
-	err = os.WriteFile(path.Join(*outputPath, annotationFilename), annotation, 0644)
+	err = os.WriteFile(path.Join(*outputPath, annotationFilename), annotationJSON, 0644)
 	rtx.Must(err, "Failed to write annotation file")
 }
