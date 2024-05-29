@@ -17,6 +17,7 @@ import (
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/register"
+	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
 	"github.com/m-lab/uuid-annotator/annotator"
@@ -215,6 +216,45 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	b, _ := json.MarshalIndent(r, "", " ")
+	rw.Write(b)
+}
+
+func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
+	// All replies, errors and successes, should be json.
+	rw.Header().Set("Content-Type", "application/json")
+
+	resp := v0.DeleteResponse{}
+	hostname := req.URL.Query().Get("hostname")
+	name, err := host.Parse(hostname)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "dns.delete",
+			Title:  "failed to parse hostname",
+			Detail: err.Error(),
+			Status: http.StatusBadRequest,
+		}
+		log.Println("dns delete (parse) failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
+	log.Printf("Unregistering hostname: %v", name)
+	m := dnsx.NewManager(s.DNS, s.Project, register.OrgZone(name.Org, s.Project))
+	_, err = m.Delete(req.Context(), hostname)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "dns.delete",
+			Title:  "failed to delete hostname",
+			Detail: err.Error(),
+			Status: http.StatusInternalServerError,
+		}
+		log.Println("dns delete failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	b, _ := json.MarshalIndent(resp, "", " ")
 	rw.Write(b)
 }
 

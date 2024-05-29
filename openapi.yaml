@@ -108,6 +108,28 @@ paths:
         - api_key: []
       tags:
         - public
+  "/autojoin/v0/node/delete":
+    post:
+      description: |-
+        Delete a hostname from M-Lab.
+
+        This resource requires an API key.
+      operationId: "autojoin-v0-node-delete"
+      parameters:
+        - in: query
+          name: hostname
+          type: string
+          required: true
+          description: Hostname to delete.
+      produces:
+        - "application/json"
+      responses:
+        '200':
+          description: Deletion was successful.
+      security:
+        - api_key: []
+      tags:
+        - public
 
 securityDefinitions:
   # This section configures basic authentication with an API key.

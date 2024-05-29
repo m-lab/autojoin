@@ -22,6 +22,11 @@ type RegisterResponse struct {
 	Registration *Registration `json:",omitempty"`
 }
 
+// DeleteResponse is returned by an unregister request.
+type DeleteResponse struct {
+	Error *v2.Error `json:",omitempty"`
+}
+
 // Network contains IPv4 and IPv6 addresses.
 type Network struct {
 	IPv4 string
