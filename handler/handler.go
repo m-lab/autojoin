@@ -239,7 +239,6 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	log.Printf("Unregistering hostname: %v", name)
 	m := dnsx.NewManager(s.DNS, s.Project, register.OrgZone(name.Org, s.Project))
 	_, err = m.Delete(req.Context(), name.StringAll()+".")
 	if err != nil {

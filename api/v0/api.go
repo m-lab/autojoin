@@ -22,7 +22,7 @@ type RegisterResponse struct {
 	Registration *Registration `json:",omitempty"`
 }
 
-// DeleteResponse is returned by an unregister request.
+// DeleteResponse is returned by a delete request.
 type DeleteResponse struct {
 	Error *v2.Error `json:",omitempty"`
 }
