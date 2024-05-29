@@ -107,6 +107,7 @@ func (d *Manager) Delete(ctx context.Context, hostname string) (*dns.Change, err
 	for _, rtype := range []string{recordTypeA, recordTypeAAAA} {
 		rr, err := d.get(ctx, hostname, rtype)
 		if err != nil && !isNotFound(err) {
+			log.Println(err)
 			// A different error occured. The host record may or may not exist.
 			return nil, err
 		}
