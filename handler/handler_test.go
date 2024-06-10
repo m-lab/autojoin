@@ -429,12 +429,11 @@ func TestServer_Register(t *testing.T) {
 
 func TestServer_Delete(t *testing.T) {
 	tests := []struct {
-		name        string
-		DNS         dnsiface.Service
-		qs          string
-		wantName    string
-		wantCode    int
-		marshalFail bool
+		name     string
+		DNS      dnsiface.Service
+		qs       string
+		wantName string
+		wantCode int
 	}{
 		{
 			name:     "success",
@@ -459,11 +458,10 @@ func TestServer_Delete(t *testing.T) {
 			DNS:      &fakeDNS{getErr: errors.New("fake error")},
 		},
 		{
-			name:        "error-marshal-failed",
-			qs:          "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
-			wantCode:    http.StatusInternalServerError,
-			DNS:         &fakeDNS{},
-			marshalFail: true,
+			name:     "error-marshal-failed",
+			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
+			wantCode: http.StatusInternalServerError,
+			DNS:      &fakeDNS{},
 		},
 	}
 	for _, tt := range tests {
@@ -471,13 +469,6 @@ func TestServer_Delete(t *testing.T) {
 			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
-			if tt.marshalFail {
-				oldJSONMarshalIndent := jsonMarshalIndent
-				jsonMarshalIndent = func(v interface{}, prefix, indent string) ([]byte, error) {
-					return nil, errors.New("fake error")
-				}
-				defer func() { jsonMarshalIndent = oldJSONMarshalIndent }()
-			}
 			s.Delete(rw, req)
 
 			if rw.Code != tt.wantCode {

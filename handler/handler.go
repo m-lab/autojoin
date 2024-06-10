@@ -29,10 +29,6 @@ var (
 	errLocationFormat   = errors.New("location could not be parsed")
 
 	validName = regexp.MustCompile(`[a-z0-9]+`)
-
-	jsonMarshalIndent = func(v interface{}, prefix, indent string) ([]byte, error) {
-		return json.MarshalIndent(v, prefix, indent)
-	}
 )
 
 // Server maintains shared state for the server.
@@ -257,19 +253,8 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 		writeResponse(rw, resp)
 		return
 	}
-	b, err := jsonMarshalIndent(resp, "", " ")
-	if err != nil {
-		resp.Error = &v2.Error{
-			Type:   "dns.delete",
-			Title:  "failed to marshal response",
-			Detail: err.Error(),
-			Status: http.StatusInternalServerError,
-		}
-		log.Println("dns delete failure:", err)
-		rw.WriteHeader(resp.Error.Status)
-		writeResponse(rw, resp)
-		return
-	}
+	b, err := json.MarshalIndent(resp, "", " ")
+	rtx.Must(err, "failed to marshal DNS delete response")
 	rw.Write(b)
 }
 
