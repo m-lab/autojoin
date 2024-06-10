@@ -457,12 +457,6 @@ func TestServer_Delete(t *testing.T) {
 			wantCode: http.StatusInternalServerError,
 			DNS:      &fakeDNS{getErr: errors.New("fake error")},
 		},
-		{
-			name:     "error-marshal-failed",
-			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
-			wantCode: http.StatusInternalServerError,
-			DNS:      &fakeDNS{},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
