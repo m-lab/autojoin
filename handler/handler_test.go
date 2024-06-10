@@ -426,3 +426,48 @@ func TestServer_Register(t *testing.T) {
 		})
 	}
 }
+
+func TestServer_Delete(t *testing.T) {
+	tests := []struct {
+		name     string
+		DNS      dnsiface.Service
+		qs       string
+		wantName string
+		wantCode int
+	}{
+		{
+			name:     "success",
+			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
+			wantCode: http.StatusOK,
+			DNS:      &fakeDNS{},
+		},
+		{
+			name:     "error-hostname-empty",
+			qs:       "?hostname=",
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "error-hostname-invalid",
+			qs:       "?hostname=this-is-not-valid.foo",
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "error-request-failed",
+			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
+			wantCode: http.StatusInternalServerError,
+			DNS:      &fakeDNS{getErr: errors.New("fake error")},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS)
+			rw := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
+			s.Delete(rw, req)
+
+			if rw.Code != tt.wantCode {
+				t.Errorf("Delete() returned wrong code; got %d, want %d", rw.Code, tt.wantCode)
+			}
+		})
+	}
+}
