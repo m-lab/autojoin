@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"io"
@@ -48,13 +47,9 @@ func main() {
 
 	// Keep retrying registration every configured interval.
 	t := time.NewTicker(*interval)
-	go func() {
-		for range t.C {
-			register()
-		}
-	}()
-
-	<-context.Background().Done()
+	for range t.C {
+		register()
+	}
 }
 
 // Make a call to the register endpoint and write the resulting config files to
