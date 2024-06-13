@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"time"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/go/rtx"
@@ -31,6 +34,7 @@ var (
 	iata       = flag.String("iata", "", "IATA code to register with the autojoin service")
 	ipv4       = flag.String("ipv4", "", "IPv4 address to register with the autojoin service")
 	ipv6       = flag.String("ipv6", "", "IPv6 address to register with the autojoin service")
+	interval   = flag.Duration("interval", 1*time.Hour, "Registration interval")
 	outputPath = flag.String("output", "", "Output folder")
 )
 
@@ -41,6 +45,23 @@ func main() {
 		panic("-key, -service, -organization, and -iata are required.")
 	}
 
+	register()
+
+	// Keep retrying registration every configured interval.
+	t := time.NewTicker(*interval)
+	go func() {
+		for range t.C {
+			register()
+		}
+	}()
+
+	<-context.Background().Done()
+}
+
+// Make a call to the register endpoint and write the resulting config files to
+// disk. If the node is registered already, this is effectively a no-op for the
+// autojoin API and will just touch the output files' last-modified time.
+func register() {
 	// Make a HTTP call to the autojoin service to register this node.
 	registerURL, err := url.Parse(*endpoint)
 	rtx.Must(err, "Failed to parse autojoin service URL")
@@ -52,6 +73,8 @@ func main() {
 	q.Add("ipv4", *ipv4)
 	q.Add("ipv6", *ipv6)
 	registerURL.RawQuery = q.Encode()
+
+	log.Printf("Registering with %s", registerURL)
 
 	resp, err := http.Post(registerURL.String(), "application/json", nil)
 	rtx.Must(err, "POST autojoin/v0/node/register failed")
@@ -88,4 +111,6 @@ func main() {
 	rtx.Must(err, "Failed to write heartbeat file")
 	err = os.WriteFile(path.Join(*outputPath, annotationFilename), annotationJSON, 0644)
 	rtx.Must(err, "Failed to write annotation file")
+
+	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
 }
