@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
+	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
 	"github.com/m-lab/uuid-annotator/annotator"
@@ -25,15 +27,17 @@ const (
 )
 
 var (
-	endpoint   = flag.String("endpoint", registerEndpoint, "Endpoint of the autojoin service")
-	apiKey     = flag.String("key", "", "API key for the autojoin service")
-	service    = flag.String("service", "ndt", "Service name to register with the autojoin service")
-	org        = flag.String("organization", "", "Organization to register with the autojoin service")
-	iata       = flag.String("iata", "", "IATA code to register with the autojoin service")
-	ipv4       = flag.String("ipv4", "", "IPv4 address to register with the autojoin service")
-	ipv6       = flag.String("ipv6", "", "IPv6 address to register with the autojoin service")
-	interval   = flag.Duration("interval", 1*time.Hour, "Registration interval")
-	outputPath = flag.String("output", "", "Output folder")
+	endpoint    = flag.String("endpoint", registerEndpoint, "Endpoint of the autojoin service")
+	apiKey      = flag.String("key", "", "API key for the autojoin service")
+	service     = flag.String("service", "ndt", "Service name to register with the autojoin service")
+	org         = flag.String("organization", "", "Organization to register with the autojoin service")
+	iata        = flag.String("iata", "", "IATA code to register with the autojoin service")
+	ipv4        = flag.String("ipv4", "", "IPv4 address to register with the autojoin service")
+	ipv6        = flag.String("ipv6", "", "IPv6 address to register with the autojoin service")
+	interval    = flag.Duration("interval.expected", 1*time.Hour, "Expected registration interval")
+	intervalMin = flag.Duration("interval.min", 55*time.Minute, "Minimum registration interval")
+	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
+	outputPath  = flag.String("output", "", "Output folder")
 )
 
 func main() {
@@ -46,7 +50,13 @@ func main() {
 	register()
 
 	// Keep retrying registration every configured interval.
-	t := time.NewTicker(*interval)
+	t, err := memoryless.NewTicker(context.Background(), memoryless.Config{
+		Expected: *interval,
+		Min:      *intervalMin,
+		Max:      *intervalMax,
+	})
+	rtx.Must(err, "Failed to create ticker")
+
 	for range t.C {
 		register()
 	}
