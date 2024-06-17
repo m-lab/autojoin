@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gomodule/redigo/redis"
 	"github.com/m-lab/autojoin/handler"
 	"github.com/m-lab/autojoin/iata"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
@@ -17,6 +18,7 @@ import (
 	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/rtx"
+	"github.com/m-lab/locate/memorystore"
 	"github.com/m-lab/uuid-annotator/asnannotator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -27,6 +29,7 @@ import (
 var (
 	listenPort   string
 	project      string
+	redisAddr    string
 	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.10/iata-icao.csv")
 	maxmindSrc   = flagx.URL{}
 	routeviewSrc = flagx.URL{}
@@ -48,6 +51,7 @@ func init() {
 	flag.Var(&iataSrc, "iata-url", "URL to IATA dataset")
 	flag.Var(&maxmindSrc, "maxmind-url", "URL of a Maxmind GeoIP dataset, e.g. gs://bucket/file or file:./relativepath/file")
 	flag.Var(&routeviewSrc, "routeview-v4.url", "URL of an ip2prefix routeview IPv4 dataset, e.g. gs://bucket/file and file:./relativepath/file")
+	flag.StringVar(&redisAddr, "redis-address", "", "Primary endpoint for Redis instance")
 
 	// Enable logging with line numbers to trace error locations.
 	log.SetFlags(log.LUTC | log.Llongfile)
@@ -77,6 +81,18 @@ func main() {
 	rvsrc, err := content.FromURL(mainCtx, routeviewSrc.URL)
 	rtx.Must(err, "Could not load routeview v4 URL")
 	asn := asnannotator.NewIPv4(mainCtx, rvsrc)
+
+	// Connect to memorystore.
+
+	pool := &redis.Pool{
+		Dial: func() (redis.Conn, error) {
+			return redis.Dial("tcp", redisAddr)
+		},
+	}
+	msClient := memorystore.NewClient[time.Time](pool)
+	res, err := msClient.GetAll()
+	rtx.Must(err, "Could not get entries from memorystore")
+	log.Println(res)
 
 	// Create server.
 	s := handler.NewServer(project, i, mm, asn, d)
