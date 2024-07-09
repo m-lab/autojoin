@@ -201,7 +201,7 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	r := register.CreateRegisterResponse(param)
 	// Override site probability with user-provided parameter.
 	// TODO(soltesz): include M-Lab override option
-	r.Registration.Probability = getProbability(req)
+	r.Registration.Heartbeat.Probability = getProbability(req)
 
 	// Register the hostname under the organization zone.
 	m := dnsx.NewManager(s.DNS, s.Project, register.OrgZone(param.Org, s.Project))
