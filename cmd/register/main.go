@@ -80,7 +80,7 @@ func register() {
 	q.Add("iata", *iata)
 	q.Add("ipv4", *ipv4)
 	q.Add("ipv6", *ipv6)
-	q.Add("probability", *siteProb)
+	q.Add("probability", fmt.Sprintf("%f", *siteProb))
 	registerURL.RawQuery = q.Encode()
 
 	log.Printf("Registering with %s", registerURL)
