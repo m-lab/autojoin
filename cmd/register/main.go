@@ -38,6 +38,7 @@ var (
 	intervalMin = flag.Duration("interval.min", 55*time.Minute, "Minimum registration interval")
 	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
 	outputPath  = flag.String("output", "", "Output folder")
+	siteProb    = flag.Float64("probability", 1.0, "Default probability of returning this site for a Locate result")
 )
 
 func main() {
@@ -45,6 +46,9 @@ func main() {
 
 	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || *iata == "" {
 		panic("-key, -service, -organization, and -iata are required.")
+	}
+	if *siteProb <= 0.0 || *siteProb > 1.0 {
+		panic("-probability must be in the range (0, 1]")
 	}
 
 	register()
@@ -76,6 +80,7 @@ func register() {
 	q.Add("iata", *iata)
 	q.Add("ipv4", *ipv4)
 	q.Add("ipv6", *ipv6)
+	q.Add("probability", *siteProb)
 	registerURL.RawQuery = q.Encode()
 
 	log.Printf("Registering with %s", registerURL)
