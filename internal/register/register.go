@@ -27,6 +27,7 @@ type Params struct {
 	Geo     *geoip2.City
 	Metro   iata.Row
 	Network *annotator.Network
+	Probability float64
 }
 
 // OrgZone generates the organization zone name based the organization and project.
@@ -93,7 +94,7 @@ func CreateRegisterResponse(p *Params) v0.RegisterResponse {
 				Machine:       machine,
 				Metro:         site[:3],
 				Project:       p.Project,
-				Probability:   1,
+				Probability:   p.Probability,
 				Site:          site,
 				Type:          "unknown", // should be overridden by node.
 				Uplink:        "unknown", // should be overridden by node.
