@@ -65,6 +65,14 @@ func CreateRegisterResponse(p *Params) v0.RegisterResponse {
 		}
 	}
 
+	// A v0.Network must contain a valid CIDR, so we convert the v4/v6
+	// addresses to a /32 or a /128 here.
+	ipv4CIDR := p.IPv4 + "/32"
+	ipv6CIDR := ""
+	if p.IPv6 != "" {
+		ipv6CIDR = p.IPv6 + "/128"
+	}
+
 	// Put everything together into a RegisterResponse.
 	r := v0.RegisterResponse{
 		Registration: &v0.Registration{
@@ -77,8 +85,8 @@ func CreateRegisterResponse(p *Params) v0.RegisterResponse {
 					Network: p.Network,
 				},
 				Network: v0.Network{
-					IPv4: p.IPv4,
-					IPv6: p.IPv6,
+					IPv4: ipv4CIDR,
+					IPv6: ipv6CIDR,
 				},
 				Type: "unknown", // should be overridden by node.
 			},
