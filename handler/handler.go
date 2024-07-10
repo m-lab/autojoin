@@ -372,6 +372,7 @@ func getClientIP(req *http.Request) string {
 
 func getProbability(req *http.Request) float64 {
 	prob := req.URL.Query().Get("probability")
+	fmt.Println("prob:", prob)
 	if prob == "" {
 		return 1.0
 	}
