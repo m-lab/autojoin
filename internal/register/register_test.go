@@ -84,7 +84,7 @@ func TestCreateRegisterResponse(t *testing.T) {
 							},
 						},
 						Network: v0.Network{
-							IPv4: "192.168.0.1",
+							IPv4: "192.168.0.1/32",
 						},
 						Type: "unknown",
 					},
