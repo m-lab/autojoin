@@ -135,44 +135,6 @@ func TestServer_Lookup(t *testing.T) {
 			wantCode: http.StatusOK,
 		},
 		{
-			name: "request-with-probability-invalid",
-			iata: &fakeIataFinder{iata: "jfk"},
-			maxmind: &fakeMaxmind{
-				city: &geoip2.City{
-					Country: struct {
-						GeoNameID         uint              `maxminddb:"geoname_id"`
-						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						IsoCode           string            `maxminddb:"iso_code"`
-						Names             map[string]string `maxminddb:"names"`
-					}{
-						IsoCode: "US",
-					},
-				},
-			},
-			request:  "?lat=43&lon=-70&probability=invalid",
-			wantIata: "jfk",
-			wantCode: http.StatusOK,
-		},
-		{
-			name: "request-with-probability",
-			iata: &fakeIataFinder{iata: "jfk"},
-			maxmind: &fakeMaxmind{
-				city: &geoip2.City{
-					Country: struct {
-						GeoNameID         uint              `maxminddb:"geoname_id"`
-						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						IsoCode           string            `maxminddb:"iso_code"`
-						Names             map[string]string `maxminddb:"names"`
-					}{
-						IsoCode: "US",
-					},
-				},
-			},
-			request:  "?lat=43&lon=-70&probability=0.5",
-			wantIata: "jfk",
-			wantCode: http.StatusOK,
-		},
-		{
 			name:     "bad-lat-lon",
 			iata:     &fakeIataFinder{iata: "jfk"},
 			request:  "?country=US&lat=ten&lon=twelve",
@@ -294,7 +256,57 @@ func TestServer_Register(t *testing.T) {
 	}{
 		{
 			name:   "success",
-			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0",
+			Iata: &fakeIataFinder{
+				findRow: iata.Row{
+					IATA:      "lga",
+					Latitude:  -10,
+					Longitude: -10,
+				},
+			},
+			Maxmind: &fakeMaxmind{
+				// NOTE: this riduculous declaration is needed due to anonymous structs in the geoip2 package.
+				city: &geoip2.City{
+					Country: struct {
+						GeoNameID         uint              `maxminddb:"geoname_id"`
+						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
+						IsoCode           string            `maxminddb:"iso_code"`
+						Names             map[string]string `maxminddb:"names"`
+					}{
+						IsoCode: "US",
+					},
+					Subdivisions: []struct {
+						GeoNameID uint              `maxminddb:"geoname_id"`
+						IsoCode   string            `maxminddb:"iso_code"`
+						Names     map[string]string `maxminddb:"names"`
+					}{
+						{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
+						{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
+					},
+					Location: struct {
+						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
+						Latitude       float64 `maxminddb:"latitude"`
+						Longitude      float64 `maxminddb:"longitude"`
+						MetroCode      uint    `maxminddb:"metro_code"`
+						TimeZone       string  `maxminddb:"time_zone"`
+					}{
+						Latitude:  41,
+						Longitude: -73,
+					},
+				},
+			},
+			ASN: &fakeAsn{
+				ann: &annotator.Network{
+					ASNumber: 12345,
+				},
+			},
+			DNS:      &fakeDNS{},
+			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode: http.StatusOK,
+		},
+		{
+			name:   "success-probability-invalid",
+			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid",
 			Iata: &fakeIataFinder{
 				findRow: iata.Row{
 					IATA:      "lga",
