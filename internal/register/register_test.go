@@ -62,6 +62,7 @@ func TestCreateRegisterResponse(t *testing.T) {
 				Network: &annotator.Network{
 					ASNumber: 12345,
 				},
+				Probability: 1.0,
 			},
 			want: v0.RegisterResponse{
 				Registration: &v0.Registration{

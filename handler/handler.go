@@ -198,6 +198,9 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	}
 	param.Geo = record
 	param.Network = s.ASN.AnnotateIP(param.IPv4)
+	// Override site probability with user-provided parameter.
+	// TODO(soltesz): include M-Lab override option
+	param.Probability = getProbability(req)
 	r := register.CreateRegisterResponse(param)
 
 	// Register the hostname under the organization zone.
@@ -365,4 +368,16 @@ func getClientIP(req *http.Request) string {
 	// Use remote client address.
 	hip, _, _ := net.SplitHostPort(req.RemoteAddr)
 	return hip
+}
+
+func getProbability(req *http.Request) float64 {
+	prob := req.URL.Query().Get("probability")
+	if prob == "" {
+		return 1.0
+	}
+	p, err := strconv.ParseFloat(prob, 64)
+	if err != nil {
+		return 1.0
+	}
+	return p
 }
