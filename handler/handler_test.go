@@ -135,6 +135,44 @@ func TestServer_Lookup(t *testing.T) {
 			wantCode: http.StatusOK,
 		},
 		{
+			name: "request-with-probability-invalid",
+			iata: &fakeIataFinder{iata: "jfk"},
+			maxmind: &fakeMaxmind{
+				city: &geoip2.City{
+					Country: struct {
+						GeoNameID         uint              `maxminddb:"geoname_id"`
+						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
+						IsoCode           string            `maxminddb:"iso_code"`
+						Names             map[string]string `maxminddb:"names"`
+					}{
+						IsoCode: "US",
+					},
+				},
+			},
+			request:  "?lat=43&lon=-70&probability=invalid",
+			wantIata: "jfk",
+			wantCode: http.StatusOK,
+		},
+		{
+			name: "request-with-probability",
+			iata: &fakeIataFinder{iata: "jfk"},
+			maxmind: &fakeMaxmind{
+				city: &geoip2.City{
+					Country: struct {
+						GeoNameID         uint              `maxminddb:"geoname_id"`
+						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
+						IsoCode           string            `maxminddb:"iso_code"`
+						Names             map[string]string `maxminddb:"names"`
+					}{
+						IsoCode: "US",
+					},
+				},
+			},
+			request:  "?lat=43&lon=-70&probability=0.5",
+			wantIata: "jfk",
+			wantCode: http.StatusOK,
+		},
+		{
 			name:     "bad-lat-lon",
 			iata:     &fakeIataFinder{iata: "jfk"},
 			request:  "?country=US&lat=ten&lon=twelve",
