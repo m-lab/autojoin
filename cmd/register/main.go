@@ -13,7 +13,6 @@ import (
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
-	"github.com/m-lab/uuid-annotator/annotator"
 )
 
 const (
@@ -72,7 +71,7 @@ func main() {
 	}
 
 	heartbeat := map[string]v2.Registration{r.Registration.Hostname: *r.Registration.Heartbeat}
-	annotation := map[string]annotator.ServerAnnotations{r.Registration.Hostname: r.Registration.Annotation.Annotation}
+	annotation := map[string]v0.ServerAnnotation{r.Registration.Hostname: *r.Registration.Annotation}
 
 	// Write the hostname to a file.
 	err = os.WriteFile(path.Join(*outputPath, hostnameFilename), []byte(r.Registration.Hostname), 0644)
