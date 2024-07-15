@@ -130,6 +130,26 @@ paths:
         - api_key: []
       tags:
         - public
+  "/autojoin/v0/node/list":
+    post:
+      description: |-
+        List known hostnames in requested format.
+
+        This resource does not require an API key.
+      operationId: "autojoin-v0-node-list"
+      parameters:
+        - in: query
+          name: format
+          type: string
+          description: format of list results
+      produces:
+        - "application/json"
+      responses:
+        '200':
+          description: List was successful.
+      tags:
+        - public
+
 
 securityDefinitions:
   # This section configures basic authentication with an API key.
