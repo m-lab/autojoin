@@ -1,6 +1,7 @@
 package v0
 
 import (
+	"github.com/m-lab/gcp-service-discovery/discovery"
 	v2 "github.com/m-lab/locate/api/v2"
 	"github.com/m-lab/uuid-annotator/annotator"
 )
@@ -25,6 +26,12 @@ type RegisterResponse struct {
 // DeleteResponse is returned by a delete request.
 type DeleteResponse struct {
 	Error *v2.Error `json:",omitempty"`
+}
+
+// ListResponse is returned by a list request.
+type ListResponse struct {
+	Error        *v2.Error                `json:",omitempty"`
+	StaticConfig []discovery.StaticConfig `json:",omitempty"`
 }
 
 // Network contains IPv4 and IPv6 addresses.
