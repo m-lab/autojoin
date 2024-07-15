@@ -6,7 +6,7 @@ require (
 	github.com/go-test/deep v1.0.8
 	github.com/gomodule/redigo v1.8.8
 	github.com/m-lab/go v0.1.71
-	github.com/m-lab/locate v0.14.48
+	github.com/m-lab/locate v0.14.49
 	github.com/m-lab/uuid-annotator v0.5.6
 	github.com/oschwald/geoip2-golang v1.7.0
 	github.com/prometheus/client_golang v1.18.0

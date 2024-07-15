@@ -12,6 +12,7 @@ import (
 	"github.com/m-lab/autojoin/iata"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/maxmind"
+	"github.com/m-lab/autojoin/internal/tracker"
 	"github.com/m-lab/go/content"
 	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/httpx"
@@ -83,19 +84,24 @@ func main() {
 	asn := asnannotator.NewIPv4(mainCtx, rvsrc)
 
 	// Connect to memorystore.
-
 	pool := &redis.Pool{
 		Dial: func() (redis.Conn, error) {
 			return redis.Dial("tcp", redisAddr)
 		},
 	}
-	msClient := memorystore.NewClient[time.Time](pool)
-	res, err := msClient.GetAll()
-	rtx.Must(err, "Could not get entries from memorystore")
-	log.Println(res)
+	msClient := memorystore.NewClient[tracker.StatusTracker](pool)
+
+	// Test connection by calling GetAll
+	entries, err := msClient.GetAll()
+	rtx.Must(err, "Could not connect to memorystore")
+	log.Printf("Connected to memorystore at %s", redisAddr)
+	log.Printf("Number of tracked DNS entries: %d", len(entries))
+
+	dnsTracker := tracker.NewGarbageCollector(d, project, msClient, 20*time.Second, 10*time.Second)
+	log.Print("DNS garbage collector started")
 
 	// Create server.
-	s := handler.NewServer(project, i, mm, asn, d)
+	s := handler.NewServer(project, i, mm, asn, d, dnsTracker)
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)

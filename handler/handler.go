@@ -17,6 +17,7 @@ import (
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/register"
+	"github.com/m-lab/autojoin/internal/tracker"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
@@ -38,6 +39,8 @@ type Server struct {
 	Maxmind MaxmindFinder
 	ASN     ASNFinder
 	DNS     dnsiface.Service
+
+	dnsGC *tracker.GarbageCollector
 }
 
 // ASNFinder is an interface used by the Server to manage ASN information.
@@ -60,13 +63,15 @@ type IataFinder interface {
 }
 
 // NewServer creates a new Server instance for request handling.
-func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder, ds dnsiface.Service) *Server {
+func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
+	ds dnsiface.Service, dnsGC *tracker.GarbageCollector) *Server {
 	return &Server{
 		Project: project,
 		Iata:    finder,
 		Maxmind: maxmind,
 		ASN:     asn,
 		DNS:     ds,
+		dnsGC:   dnsGC,
 	}
 }
 
@@ -210,6 +215,19 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 			Status: http.StatusInternalServerError,
 		}
 		log.Println("dns register failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	// Add the hostname to the DNS garbage collector.
+	err = s.dnsGC.Update(r.Registration.Hostname)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "tracker.gc",
+			Title:  "could not update DNS tracker",
+			Status: http.StatusInternalServerError,
+		}
+		log.Println("dns garbage collector update failure:", err)
 		rw.WriteHeader(resp.Error.Status)
 		writeResponse(rw, resp)
 		return

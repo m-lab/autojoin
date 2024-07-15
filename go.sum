@@ -94,8 +94,8 @@ github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1
 github.com/kabukky/httpscerts v0.0.0-20150320125433-617593d7dcb3 h1:Iy7Ifq2ysilWU4QlCx/97OoI4xT1IV7i8byT/EyIT/M=
 github.com/m-lab/go v0.1.71 h1:VTfoAzsWRstsTBDvt4Ss9lJ6J6QcWvOmI2gr3OboJ1o=
 github.com/m-lab/go v0.1.71/go.mod h1:BirARfHWjjXHaCGNyWCm/CKW1OarjuEj8Yn6Z2rc0M4=
-github.com/m-lab/locate v0.14.48 h1:98DMTl75Cto0Tw+G2hFSPd/6PA1B+bwwb720GPo35QI=
-github.com/m-lab/locate v0.14.48/go.mod h1:Wahmsdym1dE3/+6Z1yUriDhCnV5c+ug8jWV1GNAIYMg=
+github.com/m-lab/locate v0.14.49 h1:M7SNJAU/fbsdWHqCOAHpWajD7mgnjN8shm8usAZMDqU=
+github.com/m-lab/locate v0.14.49/go.mod h1:Wahmsdym1dE3/+6Z1yUriDhCnV5c+ug8jWV1GNAIYMg=
 github.com/m-lab/tcp-info v1.5.3 h1:4IspTPcNc8D8LNRvuFnID8gDiz+hxPAtYvpKZaiGGe8=
 github.com/m-lab/tcp-info v1.5.3/go.mod h1:bkvI4qbjB6QVC2tsLSHqf5OnIYcmuLEVjo7+8YA56Kg=
 github.com/m-lab/uuid-annotator v0.5.6 h1:sIhlqczJ8XpEdT4Jxv785Oc1qFosGPz8PIDvvUW6IUs=
