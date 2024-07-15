@@ -55,6 +55,14 @@ func init() {
 
 var mainCtx, mainCancel = context.WithCancel(context.Background())
 
+// TODO(soltesz): query memorystore for list of known hosts.
+type FakeRecordLister struct{}
+
+// List is a fake implementation of the RecordLister interface.
+func (r *FakeRecordLister) List() ([]string, error) {
+	return []string{}, nil
+}
+
 func main() {
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
@@ -79,7 +87,7 @@ func main() {
 	asn := asnannotator.NewIPv4(mainCtx, rvsrc)
 
 	// Create server.
-	s := handler.NewServer(project, i, mm, asn, d)
+	s := handler.NewServer(project, i, mm, asn, d, &FakeRecordLister{})
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)
