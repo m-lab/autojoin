@@ -39,7 +39,7 @@ type Server struct {
 	ASN     ASNFinder
 	DNS     dnsiface.Service
 
-	dnsGC StatusTracker
+	dnsTracker DNSTracker
 }
 
 // ASNFinder is an interface used by the Server to manage ASN information.
@@ -61,21 +61,21 @@ type IataFinder interface {
 	Load(ctx context.Context) error
 }
 
-type StatusTracker interface {
+type DNSTracker interface {
 	Update(string) error
 	Delete(string) error
 }
 
 // NewServer creates a new Server instance for request handling.
 func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
-	ds dnsiface.Service, dnsGC StatusTracker) *Server {
+	ds dnsiface.Service, tracker DNSTracker) *Server {
 	return &Server{
-		Project: project,
-		Iata:    finder,
-		Maxmind: maxmind,
-		ASN:     asn,
-		DNS:     ds,
-		dnsGC:   dnsGC,
+		Project:    project,
+		Iata:       finder,
+		Maxmind:    maxmind,
+		ASN:        asn,
+		DNS:        ds,
+		dnsTracker: tracker,
 	}
 }
 
@@ -224,8 +224,8 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// Add the hostname to the DNS garbage collector.
-	err = s.dnsGC.Update(r.Registration.Hostname)
+	// Add the hostname to the DNS tracker.
+	err = s.dnsTracker.Update(r.Registration.Hostname)
 	if err != nil {
 		resp.Error = &v2.Error{
 			Type:   "tracker.gc",
@@ -277,7 +277,7 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = s.dnsGC.Delete(name.StringAll())
+	err = s.dnsTracker.Delete(name.StringAll())
 	if err != nil {
 		resp.Error = &v2.Error{
 			Type:   "tracker.gc",

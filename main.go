@@ -56,8 +56,8 @@ func init() {
 	flag.Var(&routeviewSrc, "routeview-v4.url", "URL of an ip2prefix routeview IPv4 dataset, e.g. gs://bucket/file and file:./relativepath/file")
 	flag.StringVar(&redisAddr, "redis-address", "", "Primary endpoint for Redis instance")
 
-	flag.DurationVar(&gcTTL, "gc.ttl", 3*time.Hour, "Time to live for DNS entries")
-	flag.DurationVar(&gcInterval, "gc.interval", 30*time.Minute, "Interval between garbage collection runs")
+	flag.DurationVar(&gcTTL, "gc-ttl", 3*time.Hour, "Time to live for DNS entries")
+	flag.DurationVar(&gcInterval, "gc-interval", 30*time.Minute, "Interval between garbage collection runs")
 
 	// Enable logging with line numbers to trace error locations.
 	log.SetFlags(log.LUTC | log.Llongfile)

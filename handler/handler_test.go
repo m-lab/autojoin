@@ -308,7 +308,7 @@ func TestServer_Register(t *testing.T) {
 		Maxmind  MaxmindFinder
 		ASN      ASNFinder
 		DNS      dnsiface.Service
-		Tracker  StatusTracker
+		Tracker  DNSTracker
 		params   string
 		wantName string
 		wantCode int
@@ -462,7 +462,7 @@ func TestServer_Delete(t *testing.T) {
 	tests := []struct {
 		name     string
 		DNS      dnsiface.Service
-		Tracker  StatusTracker
+		Tracker  DNSTracker
 		qs       string
 		wantName string
 		wantCode int
