@@ -13,7 +13,7 @@ import (
 	"github.com/m-lab/locate/memorystore"
 )
 
-type StatusTracker struct {
+type Status struct {
 	DNS *DNSRecord
 }
 
@@ -35,19 +35,20 @@ type MemorystoreClient[V any] interface {
 // for longer than the configured TTL.
 //
 // When the GarbageCollector is created, it spawns a goroutine that
-// periodically lists all entities in Memorystore and checks if their
-// registration has expired. If an entity has expired, it is deleted from the
-// DNS server and also removed from Memorystore.
+// periodically reads all entities in Memorystore and checks if their
+// registration has expired. If an entity has expired, it is deleted from both
+// Cloud DNS and Memorystore.
 type GarbageCollector struct {
-	MemorystoreClient[StatusTracker]
+	MemorystoreClient[Status]
 	stop    chan bool
 	project string
 	ttl     time.Duration
 	dns     dnsiface.Service
 }
 
-// NewGarbageCollector returns a new garbage-collected tracker for DNS entries.
-func NewGarbageCollector(dns dnsiface.Service, project string, msClient MemorystoreClient[StatusTracker],
+// NewGarbageCollector returns a new garbage-collected tracker for DNS entries
+// and spawns a goroutine to periodically check and delete expired entities.
+func NewGarbageCollector(dns dnsiface.Service, project string, msClient MemorystoreClient[Status],
 	ttl, interval time.Duration) *GarbageCollector {
 	st := &GarbageCollector{
 		MemorystoreClient: msClient,
@@ -68,7 +69,7 @@ func NewGarbageCollector(dns dnsiface.Service, project string, msClient Memoryst
 				return
 			case <-ticker.C:
 				log.Printf("Checking for expired memorystore entities...")
-				t.updateAndRemoveExpired()
+				t.checkAndRemoveExpired()
 			}
 		}
 	}(st)
@@ -85,30 +86,17 @@ func (t *GarbageCollector) Update(hostname string) error {
 	return t.Put(hostname, "DNS", entry, &memorystore.PutOptions{})
 }
 
-func (gc *GarbageCollector) delete(hostname string) error {
-	// Parse hostname.
-	name, err := host.Parse(hostname)
-	if err != nil {
-		log.Printf("Failed to parse hostname %s: %v", hostname, err)
-		return err
-	}
-
-	m := dnsx.NewManager(gc.dns, gc.project, register.OrgZone(name.Org, gc.project))
-	_, err = m.Delete(context.Background(), name.StringAll()+".")
-	if err != nil {
-		log.Printf("Failed to delete DNS entry for %s: %v", name, err)
-		return err
-	}
-
+func (gc *GarbageCollector) Delete(hostname string) error {
 	log.Printf("Deleting %s from memorystore", hostname)
-	err = gc.Del(hostname)
+	err := gc.Del(hostname)
 	if err != nil {
 		log.Printf("Failed to delete %s from memorystore: %v", hostname, err)
+		return err
 	}
 	return nil
 }
 
-func (t *GarbageCollector) updateAndRemoveExpired() {
+func (t *GarbageCollector) checkAndRemoveExpired() {
 	values, err := t.GetAll()
 
 	if err != nil {
@@ -120,9 +108,25 @@ func (t *GarbageCollector) updateAndRemoveExpired() {
 	for k, v := range values {
 		exp := time.Unix(v.DNS.Expiration, 0)
 		if time.Now().After(exp) {
-			log.Printf("%s expired on %s, deleting from memorystore", k, exp)
+			log.Printf("%s expired on %s, deleting from Cloud DNS and memorystore", k, exp)
+
+			// Parse hostname.
+			name, err := host.Parse(k)
+			if err != nil {
+				log.Printf("Failed to parse hostname %s: %v", k, err)
+				continue
+				// TODO(rd): count errors with a Prometheus metric
+			}
+
+			m := dnsx.NewManager(t.dns, t.project, register.OrgZone(name.Org, t.project))
+			_, err = m.Delete(context.Background(), name.StringAll()+".")
+			if err != nil {
+				log.Printf("Failed to delete DNS entry for %s: %v", name, err)
+				// TODO(rd): count errors with a Prometheus metric
+			}
+
 			// Remove expired hostname from memorystore.
-			err := t.delete(k)
+			err = t.Delete(k)
 			if err != nil {
 				log.Printf("Failed to delete %s: %v", k, err)
 				// TODO(rd): count errors with a Prometheus metric
