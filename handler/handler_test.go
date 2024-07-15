@@ -7,11 +7,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
+	"github.com/m-lab/gcp-service-discovery/discovery"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/testingx"
 	"github.com/m-lab/uuid-annotator/annotator"
@@ -203,7 +205,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{})
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -225,7 +227,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{})
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, nil)
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -235,7 +237,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{})
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, nil)
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -440,7 +442,7 @@ func TestServer_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -510,13 +512,91 @@ func TestServer_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS)
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
 			s.Delete(rw, req)
 
 			if rw.Code != tt.wantCode {
 				t.Errorf("Delete() returned wrong code; got %d, want %d", rw.Code, tt.wantCode)
+			}
+		})
+	}
+}
+
+type fakeLister struct {
+	nodes []string
+	err   error
+}
+
+func (f *fakeLister) List() ([]string, error) {
+	return f.nodes, f.err
+}
+
+func TestServer_List(t *testing.T) {
+	tests := []struct {
+		name       string
+		params     string
+		lister     *fakeLister
+		wantCode   int
+		wantLength int
+	}{
+		// TODO: Add test cases.
+		{
+			name:   "success",
+			params: "",
+			lister: &fakeLister{
+				nodes: []string{"test1"},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 1,
+		},
+		{
+			name:   "success-prometheus",
+			params: "?format=prometheus",
+			lister: &fakeLister{
+				nodes: []string{"test1"},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 1,
+		},
+		{
+			name:   "error-internal",
+			params: "",
+			lister: &fakeLister{
+				err: errors.New("fake list error"),
+			},
+			wantCode: http.StatusInternalServerError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 	Nodes:   tt.fields.Nodes,
+			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister)
+			rw := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)
+
+			s.List(rw, req)
+
+			if rw.Code != tt.wantCode {
+				t.Errorf("List() returned wrong code; got %d, want %d", rw.Code, tt.wantCode)
+			}
+
+			// Check response content is valid.
+			var err error
+			raw := rw.Body.Bytes()
+			configs := []discovery.StaticConfig{}
+			if strings.Contains(tt.params, "prometheus") {
+				err = json.Unmarshal(raw, &configs)
+			} else {
+				resp := v0.ListResponse{}
+				err = json.Unmarshal(raw, &resp)
+				configs = resp.StaticConfig
+			}
+			testingx.Must(t, err, "failed to unmarshal response")
+
+			if len(configs) != tt.wantLength {
+				t.Errorf("List() returned wrong length; got %d, want %d", len(configs), tt.wantLength)
 			}
 		})
 	}

@@ -17,6 +17,7 @@ import (
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/register"
+	"github.com/m-lab/gcp-service-discovery/discovery"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
@@ -38,6 +39,7 @@ type Server struct {
 	Maxmind MaxmindFinder
 	ASN     ASNFinder
 	DNS     dnsiface.Service
+	Nodes   RecordLister
 }
 
 // ASNFinder is an interface used by the Server to manage ASN information.
@@ -59,14 +61,20 @@ type IataFinder interface {
 	Load(ctx context.Context) error
 }
 
+// RecordLister lists known nodes from backingstore, e.g. file or Memorystore.
+type RecordLister interface {
+	List() ([]string, error)
+}
+
 // NewServer creates a new Server instance for request handling.
-func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder, ds dnsiface.Service) *Server {
+func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder, ds dnsiface.Service, rl RecordLister) *Server {
 	return &Server{
 		Project: project,
 		Iata:    finder,
 		Maxmind: maxmind,
 		ASN:     asn,
 		DNS:     ds,
+		Nodes:   rl,
 	}
 }
 
@@ -222,6 +230,8 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	rw.Write(b)
 }
 
+// Delete handler is used by operators to delete a previously registered
+// hostname from DNS.
 func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 	// All replies, errors and successes, should be json.
 	rw.Header().Set("Content-Type", "application/json")
@@ -257,6 +267,54 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	b, err := json.MarshalIndent(resp, "", " ")
+	rtx.Must(err, "failed to marshal DNS delete response")
+	rw.Write(b)
+}
+
+// List handler is used by monitoring to generate a list of known, active
+// hostnames previously registered with the Autojoin API.
+func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
+	configs := []discovery.StaticConfig{}
+	resp := v0.ListResponse{}
+	hosts, err := s.Nodes.List()
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "list",
+			Title:  "failed to list node records",
+			Detail: err.Error(),
+			Status: http.StatusInternalServerError,
+		}
+		log.Println("list failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
+	// Create a prometheus StaticConfig for each known host.
+	for i := range hosts {
+		// We create one record per host to add a unique "machine" label to each one.
+		configs = append(configs, discovery.StaticConfig{
+			Targets: []string{hosts[i]},
+			Labels: map[string]string{
+				"machine":    hosts[i],
+				"type":       "virtual",
+				"deployment": "byos",
+				"managed":    "none",
+			},
+		})
+	}
+
+	var results interface{}
+	format := req.URL.Query().Get("format")
+	if format == "prometheus" {
+		results = configs
+	} else {
+		// NOTE: default format is not valid for prometheus StaticConfig format.
+		resp.StaticConfig = configs
+		results = resp
+	}
+	// Generate as JSON; the list may be empty.
+	b, err := json.MarshalIndent(results, "", " ")
 	rtx.Must(err, "failed to marshal DNS delete response")
 	rw.Write(b)
 }
