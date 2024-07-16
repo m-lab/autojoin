@@ -13,11 +13,17 @@ import (
 	"github.com/m-lab/locate/memorystore"
 )
 
+// Status is the entity written to memorystore to track DNS hostnames.
+// The key for the entity is the hostname.
 type Status struct {
+	// DNS represents a DNS record
 	DNS *DNSRecord
 }
 
+// DNSRecord represents a DNS record with a last update time to verify if the
+// hostname is still active or expired.
 type DNSRecord struct {
+	// LastUpdate is the last update time as a Unix timestamp.
 	LastUpdate int64
 }
 
@@ -78,7 +84,7 @@ func NewGarbageCollector(dns dnsiface.Service, project string, msClient Memoryst
 }
 
 // Update creates a new entry in memorystore for the given hostname or updates
-// the existing one with a new Expiration time.
+// the existing one with a new LastUpdate time.
 func (t *GarbageCollector) Update(hostname string) error {
 	entry := &DNSRecord{
 		LastUpdate: time.Now().Unix(),
