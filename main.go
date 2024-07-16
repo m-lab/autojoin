@@ -102,11 +102,11 @@ func main() {
 	log.Printf("Connected to memorystore at %s", redisAddr)
 	log.Printf("Number of tracked DNS entries: %d", len(entries))
 
-	dnsTracker := tracker.NewGarbageCollector(d, project, msClient, gcTTL, gcInterval)
+	gc := tracker.NewGarbageCollector(d, project, msClient, gcTTL, gcInterval)
 	log.Print("DNS garbage collector started")
 
 	// Create server.
-	s := handler.NewServer(project, i, mm, asn, d, dnsTracker)
+	s := handler.NewServer(project, i, mm, asn, d, gc)
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)

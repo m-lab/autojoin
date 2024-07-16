@@ -99,12 +99,14 @@ func TestGarbageCollector_checkAndRemoveExpired(t *testing.T) {
 		m: map[string]Status{
 			"foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org": {
 				DNS: &DNSRecord{
-					Expiration: 0,
+					LastUpdate: 0,
 				},
 			},
 			"foo-lga12345-c0a80002.bar.sandbox.measurement-lab.org": {
 				DNS: &DNSRecord{
-					Expiration: time.Now().Add(1 * time.Hour).Unix(),
+					// Make sure this is >= Now() so it's guaranteed not to be
+					// expired.
+					LastUpdate: time.Now().Add(1 * time.Minute).Unix(),
 				},
 			},
 		},
@@ -125,7 +127,7 @@ func TestGarbageCollector_checkAndRemoveExpired(t *testing.T) {
 	// Add un-parseable hostname
 	fakeMSClient.m["invalid"] = Status{
 		DNS: &DNSRecord{
-			Expiration: 0,
+			LastUpdate: 0,
 		},
 	}
 	gc.checkAndRemoveExpired()
@@ -141,7 +143,7 @@ func TestGarbageCollector_Delete(t *testing.T) {
 		m: map[string]Status{
 			"foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org": {
 				DNS: &DNSRecord{
-					Expiration: 0,
+					LastUpdate: 0,
 				},
 			},
 		},

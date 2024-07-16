@@ -18,7 +18,7 @@ type Status struct {
 }
 
 type DNSRecord struct {
-	Expiration int64
+	LastUpdate int64
 }
 
 // MemorystoreClient is a client for reading and writing data in Memorystore.
@@ -81,7 +81,7 @@ func NewGarbageCollector(dns dnsiface.Service, project string, msClient Memoryst
 // the existing one with a new Expiration time.
 func (t *GarbageCollector) Update(hostname string) error {
 	entry := &DNSRecord{
-		Expiration: time.Now().Add(t.ttl).Unix(),
+		LastUpdate: time.Now().Unix(),
 	}
 	return t.Put(hostname, "DNS", entry, &memorystore.PutOptions{})
 }
@@ -106,9 +106,9 @@ func (t *GarbageCollector) checkAndRemoveExpired() {
 
 	// Iterate over values and check if they are expired.
 	for k, v := range values {
-		exp := time.Unix(v.DNS.Expiration, 0)
-		if time.Now().After(exp) {
-			log.Printf("%s expired on %s, deleting from Cloud DNS and memorystore", k, exp)
+		lastUpdate := time.Unix(v.DNS.LastUpdate, 0)
+		if time.Since(lastUpdate) > t.ttl {
+			log.Printf("%s expired on %s, deleting from Cloud DNS and memorystore", k, lastUpdate.Add(t.ttl))
 
 			// Parse hostname.
 			name, err := host.Parse(k)
