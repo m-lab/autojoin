@@ -7,6 +7,7 @@ RUN go mod download
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /go/bin/register ./cmd/register
 
 # Run stage.
-FROM gcr.io/distroless/static-debian12:latest
+FROM alpine:3.20
+RUN apk add curl
 COPY --from=builder /go/bin/register .
 ENTRYPOINT ["/register"]

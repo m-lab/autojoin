@@ -39,7 +39,18 @@ var (
 	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
 	outputPath  = flag.String("output", "", "Output folder")
 	siteProb    = flag.Float64("probability", 1.0, "Default probability of returning this site for a Locate result")
+
+	hcAddr          = flag.String("healthcheck-addr", "localhost:8001", "Address to serve the /ready endpoint on")
+	registerSuccess bool
 )
+
+func Ready(rw http.ResponseWriter, req *http.Request) {
+	if registerSuccess {
+		rw.WriteHeader(http.StatusOK)
+	} else {
+		rw.WriteHeader(http.StatusServiceUnavailable)
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -51,6 +62,12 @@ func main() {
 		panic("-probability must be in the range (0, 1]")
 	}
 
+	// Set up health server.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ready", Ready)
+	go http.ListenAndServe(*hcAddr, mux)
+
+	// Register for the first time.
 	register()
 
 	// Keep retrying registration every configured interval.
@@ -121,4 +138,5 @@ func register() {
 	rtx.Must(err, "Failed to write annotation file")
 
 	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
+	registerSuccess = true
 }
