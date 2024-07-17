@@ -125,6 +125,10 @@ func main() {
 		RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/delete"}),
 		http.HandlerFunc(s.Delete)))
 
+	mux.HandleFunc("/autojoin/v0/node/list", promhttp.InstrumentHandlerDuration(
+		RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/list"}),
+		http.HandlerFunc(s.List)))
+
 	// Liveness and Readiness checks to support deployments.
 	mux.HandleFunc("/v0/live", s.Live)
 	mux.HandleFunc("/v0/ready", s.Ready)
