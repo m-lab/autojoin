@@ -131,7 +131,7 @@ paths:
       tags:
         - public
   "/autojoin/v0/node/list":
-    post:
+    get:
       description: |-
         List known hostnames in requested format.
 
