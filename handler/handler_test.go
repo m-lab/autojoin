@@ -265,7 +265,7 @@ func TestServer_Register(t *testing.T) {
 		},
 	}
 	maxmind := &fakeMaxmind{
-		// NOTE: this riduculous declaration is needed due to anonymous structs in the geoip2 package.
+		// NOTE: this ridiculous declaration is needed due to anonymous structs in the geoip2 package.
 		city: &geoip2.City{
 			Country: struct {
 				GeoNameID         uint              `maxminddb:"geoname_id"`

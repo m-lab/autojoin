@@ -104,6 +104,7 @@ func main() {
 
 	gc := tracker.NewGarbageCollector(d, project, msClient, gcTTL, gcInterval)
 	log.Print("DNS garbage collector started")
+	defer gc.Stop()
 
 	// Create server.
 	s := handler.NewServer(project, i, mm, asn, d, gc)

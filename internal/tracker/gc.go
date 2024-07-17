@@ -87,7 +87,7 @@ func NewGarbageCollector(dns dnsiface.Service, project string, msClient Memoryst
 // the existing one with a new LastUpdate time.
 func (t *GarbageCollector) Update(hostname string) error {
 	entry := &DNSRecord{
-		LastUpdate: time.Now().Unix(),
+		LastUpdate: time.Now().UTC().Unix(),
 	}
 	return t.Put(hostname, "DNS", entry, &memorystore.PutOptions{})
 }
@@ -128,6 +128,9 @@ func (t *GarbageCollector) checkAndRemoveExpired() {
 			_, err = m.Delete(context.Background(), name.StringAll()+".")
 			if err != nil {
 				log.Printf("Failed to delete DNS entry for %s: %v", name, err)
+				// If the deletion fails, we do not want to remove the entry
+				// from memorystore so the deletion can be retried next time.
+				continue
 				// TODO(rd): count errors with a Prometheus metric
 			}
 
@@ -140,4 +143,9 @@ func (t *GarbageCollector) checkAndRemoveExpired() {
 		}
 	}
 
+}
+
+func (t *GarbageCollector) Stop() {
+	t.stop <- true
+	close(t.stop)
 }

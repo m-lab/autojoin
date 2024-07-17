@@ -281,11 +281,11 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		resp.Error = &v2.Error{
 			Type:   "tracker.gc",
-			Title:  "failed to update DNS tracker",
+			Title:  "failed to delete hostname from DNS tracker",
 			Detail: err.Error(),
 			Status: http.StatusInternalServerError,
 		}
-		log.Println("DNS GC update failure:", err)
+		log.Println("DNS GC delete failure:", err)
 		rw.WriteHeader(resp.Error.Status)
 		writeResponse(rw, resp)
 		return

@@ -70,7 +70,7 @@ func TestNewGarbageCollector(t *testing.T) {
 	// Let the GC one or more times.
 	time.Sleep(500 * time.Millisecond)
 
-	gc.stop <- true
+	gc.Stop()
 	time.Sleep(500 * time.Millisecond)
 	if runtime.NumGoroutine() != before {
 		t.Errorf("NewGarbageCollector() did not stop the goroutine (got %d, exp: %d).", runtime.NumGoroutine(), before)
