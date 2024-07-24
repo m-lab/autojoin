@@ -3,8 +3,9 @@ module github.com/m-lab/autojoin
 go 1.20
 
 require (
-	github.com/go-test/deep v1.0.8
+	github.com/go-test/deep v1.1.1
 	github.com/gomodule/redigo v1.8.8
+	github.com/m-lab/gcp-service-discovery v1.5.1
 	github.com/m-lab/go v0.1.71
 	github.com/m-lab/locate v0.14.49
 	github.com/m-lab/uuid-annotator v0.5.6
@@ -22,6 +23,7 @@ require (
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect

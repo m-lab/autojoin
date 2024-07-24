@@ -4,19 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"sync/atomic"
 	"time"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
-	"github.com/m-lab/uuid-annotator/annotator"
 )
 
 const (
@@ -38,7 +39,19 @@ var (
 	intervalMin = flag.Duration("interval.min", 55*time.Minute, "Minimum registration interval")
 	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
 	outputPath  = flag.String("output", "", "Output folder")
+	siteProb    = flag.Float64("probability", 1.0, "Default probability of returning this site for a Locate result")
+
+	hcAddr          = flag.String("healthcheck-addr", "localhost:8001", "Address to serve the /ready endpoint on")
+	registerSuccess atomic.Bool
 )
+
+func Ready(rw http.ResponseWriter, req *http.Request) {
+	if registerSuccess.Load() {
+		rw.WriteHeader(http.StatusOK)
+	} else {
+		rw.WriteHeader(http.StatusServiceUnavailable)
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -46,7 +59,16 @@ func main() {
 	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || *iata == "" {
 		panic("-key, -service, -organization, and -iata are required.")
 	}
+	if *siteProb <= 0.0 || *siteProb > 1.0 {
+		panic("-probability must be in the range (0, 1]")
+	}
 
+	// Set up health server.
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ready", Ready)
+	go http.ListenAndServe(*hcAddr, mux)
+
+	// Register for the first time.
 	register()
 
 	// Keep retrying registration every configured interval.
@@ -76,6 +98,7 @@ func register() {
 	q.Add("iata", *iata)
 	q.Add("ipv4", *ipv4)
 	q.Add("ipv6", *ipv6)
+	q.Add("probability", fmt.Sprintf("%f", *siteProb))
 	registerURL.RawQuery = q.Encode()
 
 	log.Printf("Registering with %s", registerURL)
@@ -98,7 +121,7 @@ func register() {
 	}
 
 	heartbeat := map[string]v2.Registration{r.Registration.Hostname: *r.Registration.Heartbeat}
-	annotation := map[string]annotator.ServerAnnotations{r.Registration.Hostname: r.Registration.Annotation.Annotation}
+	annotation := map[string]v0.ServerAnnotation{r.Registration.Hostname: *r.Registration.Annotation}
 
 	// Write the hostname to a file.
 	err = os.WriteFile(path.Join(*outputPath, hostnameFilename), []byte(r.Registration.Hostname), 0644)
@@ -116,4 +139,5 @@ func register() {
 	rtx.Must(err, "Failed to write annotation file")
 
 	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
+	registerSuccess.Store(true)
 }

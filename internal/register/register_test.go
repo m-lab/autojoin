@@ -25,7 +25,7 @@ func TestCreateRegisterResponse(t *testing.T) {
 				Service: "ndt",
 				Org:     "bar",
 				IPv4:    "192.168.0.1",
-				IPv6:    "",
+				IPv6:    "::1",
 				Geo: &geoip2.City{
 					Country: struct {
 						GeoNameID         uint              `maxminddb:"geoname_id"`
@@ -62,6 +62,7 @@ func TestCreateRegisterResponse(t *testing.T) {
 				Network: &annotator.Network{
 					ASNumber: 12345,
 				},
+				Probability: 1.0,
 			},
 			want: v0.RegisterResponse{
 				Registration: &v0.Registration{
@@ -84,7 +85,8 @@ func TestCreateRegisterResponse(t *testing.T) {
 							},
 						},
 						Network: v0.Network{
-							IPv4: "192.168.0.1",
+							IPv4: "192.168.0.1/32",
+							IPv6: "::1/128",
 						},
 						Type: "unknown",
 					},

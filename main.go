@@ -65,6 +65,14 @@ func init() {
 
 var mainCtx, mainCancel = context.WithCancel(context.Background())
 
+// TODO(soltesz): query memorystore for list of known hosts.
+type FakeRecordLister struct{}
+
+// List is a fake implementation of the RecordLister interface.
+func (r *FakeRecordLister) List() ([]string, error) {
+	return []string{}, nil
+}
+
 func main() {
 	flag.Parse()
 	rtx.Must(flagx.ArgsFromEnv(flag.CommandLine), "Could not parse env args")
@@ -107,7 +115,7 @@ func main() {
 	defer gc.Stop()
 
 	// Create server.
-	s := handler.NewServer(project, i, mm, asn, d, gc)
+	s := handler.NewServer(project, i, mm, asn, d, gc, &FakeRecordLister{})
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)
@@ -144,6 +152,10 @@ func main() {
 	mux.HandleFunc("/autojoin/v0/node/delete", promhttp.InstrumentHandlerDuration(
 		RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/delete"}),
 		http.HandlerFunc(s.Delete)))
+
+	mux.HandleFunc("/autojoin/v0/node/list", promhttp.InstrumentHandlerDuration(
+		RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/list"}),
+		http.HandlerFunc(s.List)))
 
 	// Liveness and Readiness checks to support deployments.
 	mux.HandleFunc("/v0/live", s.Live)

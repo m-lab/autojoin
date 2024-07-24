@@ -7,11 +7,13 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
+	"github.com/m-lab/gcp-service-discovery/discovery"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/testingx"
 	"github.com/m-lab/uuid-annotator/annotator"
@@ -216,7 +218,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -238,7 +240,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -248,7 +250,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -315,7 +317,18 @@ func TestServer_Register(t *testing.T) {
 	}{
 		{
 			name:     "success",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0",
+			Iata:     iataFinder,
+			Maxmind:  maxmind,
+			ASN:      fakeASN,
+			DNS:      &fakeDNS{},
+			Tracker:  &fakeStatusTracker{},
+			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "success-probability-invalid",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid",
 			Iata:     iataFinder,
 			Maxmind:  maxmind,
 			ASN:      fakeASN,
@@ -363,46 +376,11 @@ func TestServer_Register(t *testing.T) {
 			wantCode: http.StatusInternalServerError,
 		},
 		{
-			name:   "error-registration",
-			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
-			Iata: &fakeIataFinder{
-				findRow: iata.Row{IATA: "lga", Latitude: -10, Longitude: -10},
-			},
-			Maxmind: &fakeMaxmind{
-				city: &geoip2.City{
-					Country: struct {
-						GeoNameID         uint              `maxminddb:"geoname_id"`
-						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						IsoCode           string            `maxminddb:"iso_code"`
-						Names             map[string]string `maxminddb:"names"`
-					}{
-						IsoCode: "US",
-					},
-					Subdivisions: []struct {
-						GeoNameID uint              `maxminddb:"geoname_id"`
-						IsoCode   string            `maxminddb:"iso_code"`
-						Names     map[string]string `maxminddb:"names"`
-					}{
-						{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
-						{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
-					},
-					Location: struct {
-						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
-						Latitude       float64 `maxminddb:"latitude"`
-						Longitude      float64 `maxminddb:"longitude"`
-						MetroCode      uint    `maxminddb:"metro_code"`
-						TimeZone       string  `maxminddb:"time_zone"`
-					}{
-						Latitude:  41,
-						Longitude: -73,
-					},
-				},
-			},
-			ASN: &fakeAsn{
-				ann: &annotator.Network{
-					ASNumber: 12345,
-				},
-			},
+			name:     "error-registration",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			Iata:     iataFinder,
+			Maxmind:  maxmind,
+			ASN:      fakeASN,
 			DNS:      &fakeDNS{getErr: errors.New("fake get error")},
 			wantCode: http.StatusInternalServerError,
 		},
@@ -421,7 +399,7 @@ func TestServer_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -504,13 +482,91 @@ func TestServer_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker)
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
 			s.Delete(rw, req)
 
 			if rw.Code != tt.wantCode {
 				t.Errorf("Delete() returned wrong code; got %d, want %d", rw.Code, tt.wantCode)
+			}
+		})
+	}
+}
+
+type fakeLister struct {
+	nodes []string
+	err   error
+}
+
+func (f *fakeLister) List() ([]string, error) {
+	return f.nodes, f.err
+}
+
+func TestServer_List(t *testing.T) {
+	tests := []struct {
+		name       string
+		params     string
+		lister     *fakeLister
+		wantCode   int
+		wantLength int
+	}{
+		// TODO: Add test cases.
+		{
+			name:   "success",
+			params: "",
+			lister: &fakeLister{
+				nodes: []string{"test1"},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 1,
+		},
+		{
+			name:   "success-prometheus",
+			params: "?format=prometheus",
+			lister: &fakeLister{
+				nodes: []string{"test1"},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 1,
+		},
+		{
+			name:   "error-internal",
+			params: "",
+			lister: &fakeLister{
+				err: errors.New("fake list error"),
+			},
+			wantCode: http.StatusInternalServerError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// 	Nodes:   tt.fields.Nodes,
+			s := NewServer("mlab-sandbox", nil, nil, nil, nil, nil, tt.lister)
+			rw := httptest.NewRecorder()
+			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)
+
+			s.List(rw, req)
+
+			if rw.Code != tt.wantCode {
+				t.Errorf("List() returned wrong code; got %d, want %d", rw.Code, tt.wantCode)
+			}
+
+			// Check response content is valid.
+			var err error
+			raw := rw.Body.Bytes()
+			configs := []discovery.StaticConfig{}
+			if strings.Contains(tt.params, "prometheus") {
+				err = json.Unmarshal(raw, &configs)
+			} else {
+				resp := v0.ListResponse{}
+				err = json.Unmarshal(raw, &resp)
+				configs = resp.StaticConfig
+			}
+			testingx.Must(t, err, "failed to unmarshal response")
+
+			if len(configs) != tt.wantLength {
+				t.Errorf("List() returned wrong length; got %d, want %d", len(configs), tt.wantLength)
 			}
 		})
 	}

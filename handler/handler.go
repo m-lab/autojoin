@@ -17,6 +17,7 @@ import (
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/register"
+	"github.com/m-lab/gcp-service-discovery/discovery"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
@@ -39,6 +40,7 @@ type Server struct {
 	ASN     ASNFinder
 	DNS     dnsiface.Service
 
+	Nodes      RecordLister
 	dnsTracker DNSTracker
 }
 
@@ -66,15 +68,22 @@ type DNSTracker interface {
 	Delete(string) error
 }
 
+// RecordLister lists known nodes from backingstore, e.g. file or Memorystore.
+type RecordLister interface {
+	List() ([]string, error)
+}
+
 // NewServer creates a new Server instance for request handling.
 func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
-	ds dnsiface.Service, tracker DNSTracker) *Server {
+	ds dnsiface.Service, tracker DNSTracker, rl RecordLister) *Server {
 	return &Server{
-		Project:    project,
-		Iata:       finder,
-		Maxmind:    maxmind,
-		ASN:        asn,
-		DNS:        ds,
+		Project: project,
+		Iata:    finder,
+		Maxmind: maxmind,
+		ASN:     asn,
+		DNS:     ds,
+		Nodes:   rl,
+
 		dnsTracker: tracker,
 	}
 }
@@ -207,6 +216,9 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	}
 	param.Geo = record
 	param.Network = s.ASN.AnnotateIP(param.IPv4)
+	// Override site probability with user-provided parameter.
+	// TODO(soltesz): include M-Lab override option
+	param.Probability = getProbability(req)
 	r := register.CreateRegisterResponse(param)
 
 	// Register the hostname under the organization zone.
@@ -242,6 +254,8 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	rw.Write(b)
 }
 
+// Delete handler is used by operators to delete a previously registered
+// hostname from DNS.
 func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 	// All replies, errors and successes, should be json.
 	rw.Header().Set("Content-Type", "application/json")
@@ -292,6 +306,54 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	b, err := json.MarshalIndent(resp, "", " ")
+	rtx.Must(err, "failed to marshal DNS delete response")
+	rw.Write(b)
+}
+
+// List handler is used by monitoring to generate a list of known, active
+// hostnames previously registered with the Autojoin API.
+func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
+	configs := []discovery.StaticConfig{}
+	resp := v0.ListResponse{}
+	hosts, err := s.Nodes.List()
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "list",
+			Title:  "failed to list node records",
+			Detail: err.Error(),
+			Status: http.StatusInternalServerError,
+		}
+		log.Println("list failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
+	// Create a prometheus StaticConfig for each known host.
+	for i := range hosts {
+		// We create one record per host to add a unique "machine" label to each one.
+		configs = append(configs, discovery.StaticConfig{
+			Targets: []string{hosts[i]},
+			Labels: map[string]string{
+				"machine":    hosts[i],
+				"type":       "virtual",
+				"deployment": "byos",
+				"managed":    "none",
+			},
+		})
+	}
+
+	var results interface{}
+	format := req.URL.Query().Get("format")
+	if format == "prometheus" {
+		results = configs
+	} else {
+		// NOTE: default format is not valid for prometheus StaticConfig format.
+		resp.StaticConfig = configs
+		results = resp
+	}
+	// Generate as JSON; the list may be empty.
+	b, err := json.MarshalIndent(results, "", " ")
 	rtx.Must(err, "failed to marshal DNS delete response")
 	rw.Write(b)
 }
@@ -403,4 +465,16 @@ func getClientIP(req *http.Request) string {
 	// Use remote client address.
 	hip, _, _ := net.SplitHostPort(req.RemoteAddr)
 	return hip
+}
+
+func getProbability(req *http.Request) float64 {
+	prob := req.URL.Query().Get("probability")
+	if prob == "" {
+		return 1.0
+	}
+	p, err := strconv.ParseFloat(prob, 64)
+	if err != nil {
+		return 1.0
+	}
+	return p
 }
