@@ -114,7 +114,7 @@ func TestGarbageCollector_checkAndRemoveExpired(t *testing.T) {
 
 	gc := NewGarbageCollector(dns, "test-project", fakeMSClient, 3*time.Hour, 1*time.Hour)
 
-	gc.checkAndRemoveExpired()
+	gc.List()
 	// Check that the expired record was removed.
 	if _, ok := fakeMSClient.m["foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org"]; ok {
 		t.Errorf("checkAndRemoveExpired() failed to remove expired record.")
@@ -130,7 +130,7 @@ func TestGarbageCollector_checkAndRemoveExpired(t *testing.T) {
 			LastUpdate: 0,
 		},
 	}
-	gc.checkAndRemoveExpired()
+	gc.List()
 	// Check that the un-parseable hostname was ignored.
 	if _, ok := fakeMSClient.m["invalid"]; !ok {
 		t.Errorf("checkAndRemoveExpired() failed to ignore an un-parseable hostname.")

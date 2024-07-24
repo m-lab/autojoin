@@ -85,11 +85,11 @@ func NewGarbageCollector(dns dnsiface.Service, project string, msClient Memoryst
 
 // Update creates a new entry in memorystore for the given hostname or updates
 // the existing one with a new LastUpdate time.
-func (t *GarbageCollector) Update(hostname string) error {
+func (gc *GarbageCollector) Update(hostname string) error {
 	entry := &DNSRecord{
 		LastUpdate: time.Now().UTC().Unix(),
 	}
-	return t.Put(hostname, "DNS", entry, &memorystore.PutOptions{})
+	return gc.Put(hostname, "DNS", entry, &memorystore.PutOptions{})
 }
 
 func (gc *GarbageCollector) Delete(hostname string) error {
@@ -102,19 +102,24 @@ func (gc *GarbageCollector) Delete(hostname string) error {
 	return nil
 }
 
-func (t *GarbageCollector) checkAndRemoveExpired() {
-	values, err := t.GetAll()
+func (gc *GarbageCollector) List() ([]string, error) {
+	return gc.checkAndRemoveExpired()
+}
+
+func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, error) {
+	result := []string{}
+	values, err := gc.GetAll()
 
 	if err != nil {
 		// TODO(rd): count errors with a Prometheus metric.
-		return
+		return nil, err
 	}
 
 	// Iterate over values and check if they are expired.
 	for k, v := range values {
 		lastUpdate := time.Unix(v.DNS.LastUpdate, 0)
-		if time.Since(lastUpdate) > t.ttl {
-			log.Printf("%s expired on %s, deleting from Cloud DNS and memorystore", k, lastUpdate.Add(t.ttl))
+		if time.Since(lastUpdate) > gc.ttl {
+			log.Printf("%s expired on %s, deleting from Cloud DNS and memorystore", k, lastUpdate.Add(gc.ttl))
 
 			// Parse hostname.
 			name, err := host.Parse(k)
@@ -124,7 +129,7 @@ func (t *GarbageCollector) checkAndRemoveExpired() {
 				// TODO(rd): count errors with a Prometheus metric
 			}
 
-			m := dnsx.NewManager(t.dns, t.project, register.OrgZone(name.Org, t.project))
+			m := dnsx.NewManager(gc.dns, gc.project, register.OrgZone(name.Org, gc.project))
 			_, err = m.Delete(context.Background(), name.StringAll()+".")
 			if err != nil {
 				log.Printf("Failed to delete DNS entry for %s: %v", name, err)
@@ -135,17 +140,19 @@ func (t *GarbageCollector) checkAndRemoveExpired() {
 			}
 
 			// Remove expired hostname from memorystore.
-			err = t.Delete(k)
+			err = gc.Delete(k)
 			if err != nil {
 				log.Printf("Failed to delete %s: %v", k, err)
 				// TODO(rd): count errors with a Prometheus metric
 			}
+		} else {
+			result = append(result, k)
 		}
 	}
-
+	return result, nil
 }
 
-func (t *GarbageCollector) Stop() {
-	t.stop <- true
-	close(t.stop)
+func (gc *GarbageCollector) Stop() {
+	gc.stop <- true
+	close(gc.stop)
 }
