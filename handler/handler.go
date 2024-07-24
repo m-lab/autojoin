@@ -244,7 +244,7 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 			Title:  "could not update DNS tracker",
 			Status: http.StatusInternalServerError,
 		}
-		log.Println("dns garbage collector update failure:", err)
+		log.Println("dns gc update failure:", err)
 		rw.WriteHeader(resp.Error.Status)
 		writeResponse(rw, resp)
 		return
@@ -299,7 +299,7 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 			Detail: err.Error(),
 			Status: http.StatusInternalServerError,
 		}
-		log.Println("DNS GC delete failure:", err)
+		log.Println("dns gc delete failure:", err)
 		rw.WriteHeader(resp.Error.Status)
 		writeResponse(rw, resp)
 		return
