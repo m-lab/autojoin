@@ -40,7 +40,6 @@ type Server struct {
 	ASN     ASNFinder
 	DNS     dnsiface.Service
 
-	Nodes      RecordLister
 	dnsTracker DNSTracker
 }
 
@@ -66,23 +65,18 @@ type IataFinder interface {
 type DNSTracker interface {
 	Update(string) error
 	Delete(string) error
-}
-
-// RecordLister lists known nodes from backingstore, e.g. file or Memorystore.
-type RecordLister interface {
 	List() ([]string, error)
 }
 
 // NewServer creates a new Server instance for request handling.
 func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
-	ds dnsiface.Service, tracker DNSTracker, rl RecordLister) *Server {
+	ds dnsiface.Service, tracker DNSTracker) *Server {
 	return &Server{
 		Project: project,
 		Iata:    finder,
 		Maxmind: maxmind,
 		ASN:     asn,
 		DNS:     ds,
-		Nodes:   rl,
 
 		dnsTracker: tracker,
 	}
@@ -315,7 +309,7 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 	configs := []discovery.StaticConfig{}
 	resp := v0.ListResponse{}
-	hosts, err := s.Nodes.List()
+	hosts, err := s.dnsTracker.List()
 	if err != nil {
 		resp.Error = &v2.Error{
 			Type:   "list",
