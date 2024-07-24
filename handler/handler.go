@@ -39,7 +39,9 @@ type Server struct {
 	Maxmind MaxmindFinder
 	ASN     ASNFinder
 	DNS     dnsiface.Service
-	Nodes   RecordLister
+
+	Nodes      RecordLister
+	dnsTracker DNSTracker
 }
 
 // ASNFinder is an interface used by the Server to manage ASN information.
@@ -61,13 +63,19 @@ type IataFinder interface {
 	Load(ctx context.Context) error
 }
 
+type DNSTracker interface {
+	Update(string) error
+	Delete(string) error
+}
+
 // RecordLister lists known nodes from backingstore, e.g. file or Memorystore.
 type RecordLister interface {
 	List() ([]string, error)
 }
 
 // NewServer creates a new Server instance for request handling.
-func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder, ds dnsiface.Service, rl RecordLister) *Server {
+func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
+	ds dnsiface.Service, tracker DNSTracker, rl RecordLister) *Server {
 	return &Server{
 		Project: project,
 		Iata:    finder,
@@ -75,6 +83,8 @@ func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASN
 		ASN:     asn,
 		DNS:     ds,
 		Nodes:   rl,
+
+		dnsTracker: tracker,
 	}
 }
 
@@ -226,6 +236,20 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// Add the hostname to the DNS tracker.
+	err = s.dnsTracker.Update(r.Registration.Hostname)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "tracker.gc",
+			Title:  "could not update DNS tracker",
+			Status: http.StatusInternalServerError,
+		}
+		log.Println("dns gc update failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
 	b, _ := json.MarshalIndent(r, "", " ")
 	rw.Write(b)
 }
@@ -266,6 +290,21 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 		writeResponse(rw, resp)
 		return
 	}
+
+	err = s.dnsTracker.Delete(name.StringAll())
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "tracker.gc",
+			Title:  "failed to delete hostname from DNS tracker",
+			Detail: err.Error(),
+			Status: http.StatusInternalServerError,
+		}
+		log.Println("dns gc delete failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
 	b, err := json.MarshalIndent(resp, "", " ")
 	rtx.Must(err, "failed to marshal DNS delete response")
 	rw.Write(b)

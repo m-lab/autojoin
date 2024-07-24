@@ -3,7 +3,6 @@ package dnsx
 import (
 	"context"
 	"errors"
-	"log"
 
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"google.golang.org/api/dns/v1"
@@ -130,7 +129,6 @@ func isNotFound(err error) bool {
 	}
 	var gerr *googleapi.Error
 	if errors.As(err, &gerr) {
-		log.Printf("googleapi.Error: %#v", gerr)
 		return gerr.Code == 404
 	}
 	return false

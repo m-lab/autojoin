@@ -76,6 +76,19 @@ func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string,
 	return nil, f.chgErr
 }
 
+type fakeStatusTracker struct {
+	updateErr error
+	deleteErr error
+}
+
+func (f *fakeStatusTracker) Update(string) error {
+	return f.updateErr
+}
+
+func (f *fakeStatusTracker) Delete(string) error {
+	return f.deleteErr
+}
+
 func TestServer_Lookup(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -205,7 +218,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, nil)
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -227,7 +240,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, nil)
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -237,7 +250,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, nil)
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -246,113 +259,81 @@ func TestServer_LiveAndReady(t *testing.T) {
 }
 
 func TestServer_Register(t *testing.T) {
+	iataFinder := &fakeIataFinder{
+		findRow: iata.Row{
+			IATA:      "lga",
+			Latitude:  -10,
+			Longitude: -10,
+		},
+	}
+	maxmind := &fakeMaxmind{
+		// NOTE: this ridiculous declaration is needed due to anonymous structs in the geoip2 package.
+		city: &geoip2.City{
+			Country: struct {
+				GeoNameID         uint              `maxminddb:"geoname_id"`
+				IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
+				IsoCode           string            `maxminddb:"iso_code"`
+				Names             map[string]string `maxminddb:"names"`
+			}{
+				IsoCode: "US",
+			},
+			Subdivisions: []struct {
+				GeoNameID uint              `maxminddb:"geoname_id"`
+				IsoCode   string            `maxminddb:"iso_code"`
+				Names     map[string]string `maxminddb:"names"`
+			}{
+				{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
+				{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
+			},
+			Location: struct {
+				AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
+				Latitude       float64 `maxminddb:"latitude"`
+				Longitude      float64 `maxminddb:"longitude"`
+				MetroCode      uint    `maxminddb:"metro_code"`
+				TimeZone       string  `maxminddb:"time_zone"`
+			}{
+				Latitude:  41,
+				Longitude: -73,
+			},
+		},
+	}
+
+	fakeASN := &fakeAsn{
+		ann: &annotator.Network{
+			ASNumber: 12345,
+		},
+	}
+
 	tests := []struct {
 		name     string
 		Iata     IataFinder
 		Maxmind  MaxmindFinder
 		ASN      ASNFinder
 		DNS      dnsiface.Service
+		Tracker  DNSTracker
 		params   string
 		wantName string
 		wantCode int
 	}{
 		{
-			name:   "success",
-			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0",
-			Iata: &fakeIataFinder{
-				findRow: iata.Row{
-					IATA:      "lga",
-					Latitude:  -10,
-					Longitude: -10,
-				},
-			},
-			Maxmind: &fakeMaxmind{
-				// NOTE: this riduculous declaration is needed due to anonymous structs in the geoip2 package.
-				city: &geoip2.City{
-					Country: struct {
-						GeoNameID         uint              `maxminddb:"geoname_id"`
-						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						IsoCode           string            `maxminddb:"iso_code"`
-						Names             map[string]string `maxminddb:"names"`
-					}{
-						IsoCode: "US",
-					},
-					Subdivisions: []struct {
-						GeoNameID uint              `maxminddb:"geoname_id"`
-						IsoCode   string            `maxminddb:"iso_code"`
-						Names     map[string]string `maxminddb:"names"`
-					}{
-						{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
-						{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
-					},
-					Location: struct {
-						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
-						Latitude       float64 `maxminddb:"latitude"`
-						Longitude      float64 `maxminddb:"longitude"`
-						MetroCode      uint    `maxminddb:"metro_code"`
-						TimeZone       string  `maxminddb:"time_zone"`
-					}{
-						Latitude:  41,
-						Longitude: -73,
-					},
-				},
-			},
-			ASN: &fakeAsn{
-				ann: &annotator.Network{
-					ASNumber: 12345,
-				},
-			},
+			name:     "success",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0",
+			Iata:     iataFinder,
+			Maxmind:  maxmind,
+			ASN:      fakeASN,
 			DNS:      &fakeDNS{},
+			Tracker:  &fakeStatusTracker{},
 			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 			wantCode: http.StatusOK,
 		},
 		{
-			name:   "success-probability-invalid",
-			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid",
-			Iata: &fakeIataFinder{
-				findRow: iata.Row{
-					IATA:      "lga",
-					Latitude:  -10,
-					Longitude: -10,
-				},
-			},
-			Maxmind: &fakeMaxmind{
-				// NOTE: this riduculous declaration is needed due to anonymous structs in the geoip2 package.
-				city: &geoip2.City{
-					Country: struct {
-						GeoNameID         uint              `maxminddb:"geoname_id"`
-						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						IsoCode           string            `maxminddb:"iso_code"`
-						Names             map[string]string `maxminddb:"names"`
-					}{
-						IsoCode: "US",
-					},
-					Subdivisions: []struct {
-						GeoNameID uint              `maxminddb:"geoname_id"`
-						IsoCode   string            `maxminddb:"iso_code"`
-						Names     map[string]string `maxminddb:"names"`
-					}{
-						{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
-						{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
-					},
-					Location: struct {
-						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
-						Latitude       float64 `maxminddb:"latitude"`
-						Longitude      float64 `maxminddb:"longitude"`
-						MetroCode      uint    `maxminddb:"metro_code"`
-						TimeZone       string  `maxminddb:"time_zone"`
-					}{
-						Latitude:  41,
-						Longitude: -73,
-					},
-				},
-			},
-			ASN: &fakeAsn{
-				ann: &annotator.Network{
-					ASNumber: 12345,
-				},
-			},
+			name:     "success-probability-invalid",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid",
+			Iata:     iataFinder,
+			Maxmind:  maxmind,
+			ASN:      fakeASN,
 			DNS:      &fakeDNS{},
+			Tracker:  &fakeStatusTracker{},
 			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 			wantCode: http.StatusOK,
 		},
@@ -395,54 +376,30 @@ func TestServer_Register(t *testing.T) {
 			wantCode: http.StatusInternalServerError,
 		},
 		{
-			name:   "error-registration",
-			params: "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
-			Iata: &fakeIataFinder{
-				findRow: iata.Row{IATA: "lga", Latitude: -10, Longitude: -10},
-			},
-			Maxmind: &fakeMaxmind{
-				city: &geoip2.City{
-					Country: struct {
-						GeoNameID         uint              `maxminddb:"geoname_id"`
-						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						IsoCode           string            `maxminddb:"iso_code"`
-						Names             map[string]string `maxminddb:"names"`
-					}{
-						IsoCode: "US",
-					},
-					Subdivisions: []struct {
-						GeoNameID uint              `maxminddb:"geoname_id"`
-						IsoCode   string            `maxminddb:"iso_code"`
-						Names     map[string]string `maxminddb:"names"`
-					}{
-						{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
-						{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
-					},
-					Location: struct {
-						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
-						Latitude       float64 `maxminddb:"latitude"`
-						Longitude      float64 `maxminddb:"longitude"`
-						MetroCode      uint    `maxminddb:"metro_code"`
-						TimeZone       string  `maxminddb:"time_zone"`
-					}{
-						Latitude:  41,
-						Longitude: -73,
-					},
-				},
-			},
-			ASN: &fakeAsn{
-				ann: &annotator.Network{
-					ASNumber: 12345,
-				},
-			},
+			name:     "error-registration",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			Iata:     iataFinder,
+			Maxmind:  maxmind,
+			ASN:      fakeASN,
 			DNS:      &fakeDNS{getErr: errors.New("fake get error")},
+			wantCode: http.StatusInternalServerError,
+		},
+		{
+			name:     "error-tracker-update-error",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			Iata:     iataFinder,
+			Maxmind:  maxmind,
+			ASN:      fakeASN,
+			DNS:      &fakeDNS{},
+			Tracker:  &fakeStatusTracker{updateErr: errors.New("update error")},
+			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 			wantCode: http.StatusInternalServerError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, nil)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -483,6 +440,7 @@ func TestServer_Delete(t *testing.T) {
 	tests := []struct {
 		name     string
 		DNS      dnsiface.Service
+		Tracker  DNSTracker
 		qs       string
 		wantName string
 		wantCode int
@@ -492,27 +450,39 @@ func TestServer_Delete(t *testing.T) {
 			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
 			wantCode: http.StatusOK,
 			DNS:      &fakeDNS{},
+			Tracker:  &fakeStatusTracker{},
 		},
 		{
 			name:     "error-hostname-empty",
 			qs:       "?hostname=",
 			wantCode: http.StatusBadRequest,
+			Tracker:  &fakeStatusTracker{},
 		},
 		{
 			name:     "error-hostname-invalid",
 			qs:       "?hostname=this-is-not-valid.foo",
 			wantCode: http.StatusBadRequest,
+			Tracker:  &fakeStatusTracker{},
 		},
 		{
 			name:     "error-request-failed",
 			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
 			wantCode: http.StatusInternalServerError,
 			DNS:      &fakeDNS{getErr: errors.New("fake error")},
+			Tracker:  &fakeStatusTracker{},
+		},
+		{
+			name: "error-tracker-failed",
+
+			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
+			wantCode: http.StatusInternalServerError,
+			DNS:      &fakeDNS{},
+			Tracker:  &fakeStatusTracker{deleteErr: errors.New("delete failed")},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, nil)
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
 			s.Delete(rw, req)
@@ -572,7 +542,7 @@ func TestServer_List(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 	Nodes:   tt.fields.Nodes,
-			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister)
+			s := NewServer("mlab-sandbox", nil, nil, nil, nil, nil, tt.lister)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)
 

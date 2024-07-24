@@ -3,9 +3,11 @@ module github.com/m-lab/autojoin
 go 1.20
 
 require (
-	github.com/go-test/deep v1.0.8
+	github.com/go-test/deep v1.1.1
+	github.com/gomodule/redigo v1.8.8
+	github.com/m-lab/gcp-service-discovery v1.5.1
 	github.com/m-lab/go v0.1.71
-	github.com/m-lab/locate v0.14.45
+	github.com/m-lab/locate v0.14.49
 	github.com/m-lab/uuid-annotator v0.5.6
 	github.com/oschwald/geoip2-golang v1.7.0
 	github.com/prometheus/client_golang v1.18.0
@@ -29,7 +31,6 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.0 // indirect
 	github.com/googleapis/google-cloud-go-testing v0.0.0-20210719221736-1c9a4c676720 // indirect
-	github.com/m-lab/gcp-service-discovery v1.5.1 // indirect
 	github.com/m-lab/tcp-info v1.5.3 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/oschwald/maxminddb-golang v1.9.0 // indirect

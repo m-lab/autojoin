@@ -16,7 +16,7 @@ resources:
 
 network:
   # TODO(soltesz): setup monitoring for production (in mlab-autojoin).
-  name: default
+  name: locate
   forwarded_ports:
     - 9090/tcp
 
@@ -32,3 +32,4 @@ env_variables:
   PROMETHEUSX_LISTEN_ADDRESS: ':9090' # Must match one of the forwarded_ports above.
   MAXMIND_URL: gs://downloader-{{PROJECT_ID}}/Maxmind/current/GeoLite2-City.tar.gz
   ROUTEVIEW_V4_URL: gs://downloader-{{PROJECT_ID}}/RouteViewIPv4/current/routeview.pfx2as.gz
+  REDIS_ADDRESS: {{REDIS_ADDRESS}}
