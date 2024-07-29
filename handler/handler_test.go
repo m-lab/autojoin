@@ -79,6 +79,8 @@ func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string,
 type fakeStatusTracker struct {
 	updateErr error
 	deleteErr error
+	nodes     []string
+	listErr   error
 }
 
 func (f *fakeStatusTracker) Update(string) error {
@@ -87,6 +89,10 @@ func (f *fakeStatusTracker) Update(string) error {
 
 func (f *fakeStatusTracker) Delete(string) error {
 	return f.deleteErr
+}
+
+func (f *fakeStatusTracker) List() ([]string, error) {
+	return f.nodes, f.listErr
 }
 
 func TestServer_Lookup(t *testing.T) {
@@ -218,7 +224,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -240,7 +246,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -250,7 +256,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -399,7 +405,7 @@ func TestServer_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, nil)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -482,7 +488,7 @@ func TestServer_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil)
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
 			s.Delete(rw, req)
@@ -494,28 +500,18 @@ func TestServer_Delete(t *testing.T) {
 	}
 }
 
-type fakeLister struct {
-	nodes []string
-	err   error
-}
-
-func (f *fakeLister) List() ([]string, error) {
-	return f.nodes, f.err
-}
-
 func TestServer_List(t *testing.T) {
 	tests := []struct {
 		name       string
 		params     string
-		lister     *fakeLister
+		lister     DNSTracker
 		wantCode   int
 		wantLength int
 	}{
-		// TODO: Add test cases.
 		{
 			name:   "success",
 			params: "",
-			lister: &fakeLister{
+			lister: &fakeStatusTracker{
 				nodes: []string{"test1"},
 			},
 			wantCode:   http.StatusOK,
@@ -524,7 +520,7 @@ func TestServer_List(t *testing.T) {
 		{
 			name:   "success-prometheus",
 			params: "?format=prometheus",
-			lister: &fakeLister{
+			lister: &fakeStatusTracker{
 				nodes: []string{"test1"},
 			},
 			wantCode:   http.StatusOK,
@@ -533,8 +529,8 @@ func TestServer_List(t *testing.T) {
 		{
 			name:   "error-internal",
 			params: "",
-			lister: &fakeLister{
-				err: errors.New("fake list error"),
+			lister: &fakeStatusTracker{
+				listErr: errors.New("fake list error"),
 			},
 			wantCode: http.StatusInternalServerError,
 		},
@@ -542,7 +538,7 @@ func TestServer_List(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 	Nodes:   tt.fields.Nodes,
-			s := NewServer("mlab-sandbox", nil, nil, nil, nil, nil, tt.lister)
+			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)
 

@@ -28,6 +28,7 @@ func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string,
 type fakeMemorystoreClient[V any] struct {
 	putErr error
 	delErr error
+	getErr error
 	m      map[string]V
 }
 
@@ -38,7 +39,7 @@ func (c *fakeMemorystoreClient[V]) Put(key string, field string, value redis.Sca
 
 // GetAll returns an empty map and a nil error.
 func (c *fakeMemorystoreClient[V]) GetAll() (map[string]V, error) {
-	return c.m, nil
+	return c.m, c.getErr
 }
 
 // Del returns nil
@@ -93,7 +94,7 @@ func TestGarbageCollector_Update(t *testing.T) {
 	}
 }
 
-func TestGarbageCollector_checkAndRemoveExpired(t *testing.T) {
+func TestGarbageCollector_List(t *testing.T) {
 	dns := &fakeDNS{}
 	fakeMSClient := &fakeMemorystoreClient[Status]{
 		m: map[string]Status{
@@ -114,14 +115,14 @@ func TestGarbageCollector_checkAndRemoveExpired(t *testing.T) {
 
 	gc := NewGarbageCollector(dns, "test-project", fakeMSClient, 3*time.Hour, 1*time.Hour)
 
-	gc.checkAndRemoveExpired()
+	gc.List()
 	// Check that the expired record was removed.
 	if _, ok := fakeMSClient.m["foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org"]; ok {
-		t.Errorf("checkAndRemoveExpired() failed to remove expired record.")
+		t.Errorf("List() failed to remove expired record.")
 	}
 	// Check that the non-expired record was NOT removed.
 	if _, ok := fakeMSClient.m["foo-lga12345-c0a80002.bar.sandbox.measurement-lab.org"]; !ok {
-		t.Errorf("checkAndRemoveExpired() removed a non-expired record.")
+		t.Errorf("List() removed a non-expired record.")
 	}
 
 	// Add un-parseable hostname
@@ -130,10 +131,17 @@ func TestGarbageCollector_checkAndRemoveExpired(t *testing.T) {
 			LastUpdate: 0,
 		},
 	}
-	gc.checkAndRemoveExpired()
+	gc.List()
 	// Check that the un-parseable hostname was ignored.
 	if _, ok := fakeMSClient.m["invalid"]; !ok {
-		t.Errorf("checkAndRemoveExpired() failed to ignore an un-parseable hostname.")
+		t.Errorf("List() failed to ignore an un-parseable hostname.")
+	}
+
+	// Inject error into GetAll
+	fakeMSClient.getErr = errors.New("fake getall error")
+	_, err := gc.List()
+	if err != fakeMSClient.getErr {
+		t.Errorf("List() failed for unexpected reason; got %v; want %v", err, fakeMSClient.getErr)
 	}
 }
 
