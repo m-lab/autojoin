@@ -325,16 +325,19 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 
 	// Create a prometheus StaticConfig for each known host.
 	for i := range hosts {
-		// We create one record per host to add a unique "machine" label to each one.
-		configs = append(configs, discovery.StaticConfig{
-			Targets: []string{hosts[i]},
-			Labels: map[string]string{
-				"machine":    hosts[i],
-				"type":       "virtual",
-				"deployment": "byos",
-				"managed":    "none",
-			},
-		})
+		// TODO(soltesz): record/lookup monitoring ports in memorystore during register.
+		for _, port := range []string{"9990", "9991", "9992", "9993"} {
+			// We create one record per host to add a unique "machine" label to each one.
+			configs = append(configs, discovery.StaticConfig{
+				Targets: []string{hosts[i] + ":" + port},
+				Labels: map[string]string{
+					"machine":    hosts[i],
+					"type":       "virtual",
+					"deployment": "byos",
+					"managed":    "none",
+				},
+			})
+		}
 	}
 
 	var results interface{}
