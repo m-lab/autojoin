@@ -118,7 +118,7 @@ func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, error) {
 
 	// Iterate over values and check if they are expired.
 	for k, v := range values {
-		log.Printf("LastUpdate ts from memorystore: %s", v.DNS.LastUpdate)
+		log.Printf("LastUpdate ts from memorystore: %d", v.DNS.LastUpdate)
 		lastUpdate := time.Unix(v.DNS.LastUpdate, 0)
 		if time.Since(lastUpdate) > gc.ttl {
 			log.Printf("%s expired on %s, deleting from Cloud DNS and memorystore", k, lastUpdate.Add(gc.ttl))
