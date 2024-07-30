@@ -515,7 +515,7 @@ func TestServer_List(t *testing.T) {
 				nodes: []string{"test1"},
 			},
 			wantCode:   http.StatusOK,
-			wantLength: 1,
+			wantLength: 4,
 		},
 		{
 			name:   "success-prometheus",
@@ -524,7 +524,7 @@ func TestServer_List(t *testing.T) {
 				nodes: []string{"test1"},
 			},
 			wantCode:   http.StatusOK,
-			wantLength: 1,
+			wantLength: 4,
 		},
 		{
 			name:   "error-internal",
