@@ -478,9 +478,6 @@ func getProbability(req *http.Request) float64 {
 func getPorts(req *http.Request) []string {
 	result := []string{}
 	ports := req.URL.Query()["ports"]
-	if len(ports) == 0 {
-		return []string{"9990"} // default port
-	}
 	for _, port := range ports {
 		// Verify this is a valid number.
 		_, err := strconv.ParseInt(port, 10, 64)
