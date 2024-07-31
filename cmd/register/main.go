@@ -15,6 +15,7 @@ import (
 	"time"
 
 	v0 "github.com/m-lab/autojoin/api/v0"
+	"github.com/m-lab/go/flagx"
 	"github.com/m-lab/go/memoryless"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
@@ -40,10 +41,15 @@ var (
 	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
 	outputPath  = flag.String("output", "", "Output folder")
 	siteProb    = flag.Float64("probability", 1.0, "Default probability of returning this site for a Locate result")
+	ports       = flagx.StringArray{}
 
 	hcAddr          = flag.String("healthcheck-addr", "localhost:8001", "Address to serve the /ready endpoint on")
 	registerSuccess atomic.Bool
 )
+
+func init() {
+	flag.Var(&ports, "ports", "Ports to monitor for this service")
+}
 
 func Ready(rw http.ResponseWriter, req *http.Request) {
 	if registerSuccess.Load() {
@@ -99,6 +105,9 @@ func register() {
 	q.Add("ipv4", *ipv4)
 	q.Add("ipv6", *ipv6)
 	q.Add("probability", fmt.Sprintf("%f", *siteProb))
+	for _, port := range ports {
+		q.Add("ports", port)
+	}
 	registerURL.RawQuery = q.Encode()
 
 	log.Printf("Registering with %s", registerURL)

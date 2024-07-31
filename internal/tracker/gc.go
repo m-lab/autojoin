@@ -25,6 +25,8 @@ type Status struct {
 type DNSRecord struct {
 	// LastUpdate is the last update time as a Unix timestamp.
 	LastUpdate int64
+	// Ports contains a list of service ports to monitor
+	Ports []string
 }
 
 // MemorystoreClient is a client for reading and writing data in Memorystore.
@@ -85,9 +87,10 @@ func NewGarbageCollector(dns dnsiface.Service, project string, msClient Memoryst
 
 // Update creates a new entry in memorystore for the given hostname or updates
 // the existing one with a new LastUpdate time.
-func (gc *GarbageCollector) Update(hostname string) error {
+func (gc *GarbageCollector) Update(hostname string, ports []string) error {
 	entry := &DNSRecord{
 		LastUpdate: time.Now().UTC().Unix(),
+		Ports:      ports,
 	}
 	return gc.Put(hostname, "DNS", entry, &memorystore.PutOptions{})
 }
@@ -102,17 +105,18 @@ func (gc *GarbageCollector) Delete(hostname string) error {
 	return nil
 }
 
-func (gc *GarbageCollector) List() ([]string, error) {
+func (gc *GarbageCollector) List() ([]string, [][]string, error) {
 	return gc.checkAndRemoveExpired()
 }
 
-func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, error) {
-	result := []string{}
+func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, [][]string, error) {
+	nodes := []string{}
+	ports := [][]string{}
 	values, err := gc.GetAll()
 
 	if err != nil {
 		// TODO(rd): count errors with a Prometheus metric.
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Iterate over values and check if they are expired.
@@ -146,10 +150,11 @@ func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, error) {
 				// TODO(rd): count errors with a Prometheus metric
 			}
 		} else {
-			result = append(result, k)
+			nodes = append(nodes, k)
+			ports = append(ports, v.DNS.Ports)
 		}
 	}
-	return result, nil
+	return nodes, ports, nil
 }
 
 func (gc *GarbageCollector) Stop() {

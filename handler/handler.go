@@ -63,9 +63,9 @@ type IataFinder interface {
 }
 
 type DNSTracker interface {
-	Update(string) error
+	Update(string, []string) error
 	Delete(string) error
-	List() ([]string, error)
+	List() ([]string, [][]string, error)
 }
 
 // NewServer creates a new Server instance for request handling.
@@ -231,7 +231,7 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Add the hostname to the DNS tracker.
-	err = s.dnsTracker.Update(r.Registration.Hostname)
+	err = s.dnsTracker.Update(r.Registration.Hostname, getPorts(req))
 	if err != nil {
 		resp.Error = &v2.Error{
 			Type:   "tracker.gc",
@@ -309,7 +309,7 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 	configs := []discovery.StaticConfig{}
 	resp := v0.ListResponse{}
-	hosts, err := s.dnsTracker.List()
+	hosts, ports, err := s.dnsTracker.List()
 	if err != nil {
 		resp.Error = &v2.Error{
 			Type:   "list",
@@ -325,16 +325,18 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 
 	// Create a prometheus StaticConfig for each known host.
 	for i := range hosts {
-		// We create one record per host to add a unique "machine" label to each one.
-		configs = append(configs, discovery.StaticConfig{
-			Targets: []string{hosts[i]},
-			Labels: map[string]string{
-				"machine":    hosts[i],
-				"type":       "virtual",
-				"deployment": "byos",
-				"managed":    "none",
-			},
-		})
+		for _, port := range ports[i] {
+			// We create one record per host to add a unique "machine" label to each one.
+			configs = append(configs, discovery.StaticConfig{
+				Targets: []string{hosts[i] + ":" + port},
+				Labels: map[string]string{
+					"machine":    hosts[i],
+					"type":       "virtual",
+					"deployment": "byos",
+					"managed":    "none",
+				},
+			})
+		}
 	}
 
 	var results interface{}
@@ -471,4 +473,22 @@ func getProbability(req *http.Request) float64 {
 		return 1.0
 	}
 	return p
+}
+
+func getPorts(req *http.Request) []string {
+	result := []string{}
+	ports := req.URL.Query()["ports"]
+	for _, port := range ports {
+		// Verify this is a valid number.
+		_, err := strconv.ParseInt(port, 10, 64)
+		if err != nil {
+			// Skip if not.
+			continue
+		}
+		result = append(result, port)
+	}
+	if len(result) == 0 {
+		return []string{"9990"} // default port
+	}
+	return result
 }

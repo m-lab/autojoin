@@ -80,10 +80,11 @@ type fakeStatusTracker struct {
 	updateErr error
 	deleteErr error
 	nodes     []string
+	ports     [][]string
 	listErr   error
 }
 
-func (f *fakeStatusTracker) Update(string) error {
+func (f *fakeStatusTracker) Update(string, []string) error {
 	return f.updateErr
 }
 
@@ -91,8 +92,8 @@ func (f *fakeStatusTracker) Delete(string) error {
 	return f.deleteErr
 }
 
-func (f *fakeStatusTracker) List() ([]string, error) {
-	return f.nodes, f.listErr
+func (f *fakeStatusTracker) List() ([]string, [][]string, error) {
+	return f.nodes, f.ports, f.listErr
 }
 
 func TestServer_Lookup(t *testing.T) {
@@ -323,7 +324,7 @@ func TestServer_Register(t *testing.T) {
 	}{
 		{
 			name:     "success",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990",
 			Iata:     iataFinder,
 			Maxmind:  maxmind,
 			ASN:      fakeASN,
@@ -333,8 +334,8 @@ func TestServer_Register(t *testing.T) {
 			wantCode: http.StatusOK,
 		},
 		{
-			name:     "success-probability-invalid",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid",
+			name:     "success-probability-invalid-ports-invalid",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid&ports=invalid",
 			Iata:     iataFinder,
 			Maxmind:  maxmind,
 			ASN:      fakeASN,
@@ -513,6 +514,17 @@ func TestServer_List(t *testing.T) {
 			params: "",
 			lister: &fakeStatusTracker{
 				nodes: []string{"test1"},
+				ports: [][]string{{"9990", "9991"}},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 2,
+		},
+		{
+			name:   "success-prometheus",
+			params: "?format=prometheus",
+			lister: &fakeStatusTracker{
+				nodes: []string{"test1"},
+				ports: [][]string{{"9990"}},
 			},
 			wantCode:   http.StatusOK,
 			wantLength: 1,
@@ -522,9 +534,10 @@ func TestServer_List(t *testing.T) {
 			params: "?format=prometheus",
 			lister: &fakeStatusTracker{
 				nodes: []string{"test1"},
+				ports: [][]string{[]string{}},
 			},
 			wantCode:   http.StatusOK,
-			wantLength: 1,
+			wantLength: 0,
 		},
 		{
 			name:   "error-internal",
@@ -537,7 +550,6 @@ func TestServer_List(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 	Nodes:   tt.fields.Nodes,
 			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)

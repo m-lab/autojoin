@@ -83,7 +83,7 @@ func TestGarbageCollector_Update(t *testing.T) {
 	fakeMSClient := &fakeMemorystoreClient[Status]{}
 	gc := NewGarbageCollector(dns, "test-project", fakeMSClient, 3*time.Hour, 1*time.Hour)
 
-	err := gc.Update("foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org")
+	err := gc.Update("foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org", nil)
 	if err != nil {
 		t.Errorf("Update() returned err, expected nil: %v", err)
 	}
@@ -139,7 +139,7 @@ func TestGarbageCollector_List(t *testing.T) {
 
 	// Inject error into GetAll
 	fakeMSClient.getErr = errors.New("fake getall error")
-	_, err := gc.List()
+	_, _, err := gc.List()
 	if err != fakeMSClient.getErr {
 		t.Errorf("List() failed for unexpected reason; got %v; want %v", err, fakeMSClient.getErr)
 	}
