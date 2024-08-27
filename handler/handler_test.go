@@ -513,7 +513,8 @@ func TestServer_List(t *testing.T) {
 			name:   "success",
 			params: "",
 			lister: &fakeStatusTracker{
-				nodes: []string{"test1"},
+				// Fake node name must parse correctly.
+				nodes: []string{"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org"},
 				ports: [][]string{{"9990", "9991"}},
 			},
 			wantCode:   http.StatusOK,
@@ -523,7 +524,7 @@ func TestServer_List(t *testing.T) {
 			name:   "success-prometheus",
 			params: "?format=prometheus",
 			lister: &fakeStatusTracker{
-				nodes: []string{"test1"},
+				nodes: []string{"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org"},
 				ports: [][]string{{"9990"}},
 			},
 			wantCode:   http.StatusOK,
