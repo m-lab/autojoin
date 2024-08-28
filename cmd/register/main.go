@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -111,8 +112,7 @@ func register() {
 	registerURL.RawQuery = q.Encode()
 
 	log.Printf("Registering with %s", registerURL)
-
-	resp, err := http.Post(registerURL.String(), "application/json", nil)
+	resp, err := ipv4HTTPClient().Post(registerURL.String(), "application/json", nil)
 	rtx.Must(err, "POST autojoin/v0/node/register failed")
 	defer resp.Body.Close()
 
@@ -149,4 +149,24 @@ func register() {
 
 	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
 	registerSuccess.Store(true)
+}
+
+// ipv4HTTPClient returns an HTTP client that always uses IPv4.
+// Default timeouts are from https://go.dev/src/net/http/transport.go
+func ipv4HTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
+				return (&net.Dialer{
+					Timeout:   30 * time.Second,
+					KeepAlive: 30 * time.Second,
+				}).DialContext(ctx, "tcp4", addr)
+			},
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
 }

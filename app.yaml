@@ -16,7 +16,8 @@ resources:
 
 network:
   # TODO(soltesz): setup monitoring for production (in mlab-autojoin).
-  name: locate
+  name: autojoin
+  subnetwork_name: gae
   forwarded_ports:
     - 9090/tcp
 

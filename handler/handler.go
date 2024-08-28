@@ -164,10 +164,10 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	param.IPv6 = checkIP(req.URL.Query().Get("ipv6")) // optional.
 	param.IPv4 = checkIP(getClientIP(req))
 	ip := net.ParseIP(param.IPv4)
-	if ip == nil {
+	if ip == nil || ip.To4() == nil {
 		resp.Error = &v2.Error{
 			Type:   "?ipv4=<ipv4>",
-			Title:  "could not determine client ip from request",
+			Title:  "could not determine client ipv4 from request",
 			Status: http.StatusBadRequest,
 		}
 		rw.WriteHeader(resp.Error.Status)
