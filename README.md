@@ -6,3 +6,4 @@
 
 # autojoin
 Autojoin API
+test
