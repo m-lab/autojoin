@@ -164,10 +164,10 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	param.IPv6 = checkIP(req.URL.Query().Get("ipv6")) // optional.
 	param.IPv4 = checkIP(getClientIP(req))
 	ip := net.ParseIP(param.IPv4)
-	if ip == nil || ip.To4() == nil {
+	if ip == nil {
 		resp.Error = &v2.Error{
 			Type:   "?ipv4=<ipv4>",
-			Title:  "could not determine client ipv4 from request",
+			Title:  "could not determine client ip from request",
 			Status: http.StatusBadRequest,
 		}
 		rw.WriteHeader(resp.Error.Status)
@@ -325,6 +325,10 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 
 	// Create a prometheus StaticConfig for each known host.
 	for i := range hosts {
+		h, err := host.Parse(hosts[i])
+		if err != nil {
+			continue
+		}
 		for _, port := range ports[i] {
 			// We create one record per host to add a unique "machine" label to each one.
 			configs = append(configs, discovery.StaticConfig{
@@ -334,6 +338,7 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 					"type":       "virtual",
 					"deployment": "byos",
 					"managed":    "none",
+					"org":        h.Org,
 				},
 			})
 		}
