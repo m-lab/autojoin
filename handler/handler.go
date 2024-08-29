@@ -325,6 +325,10 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 
 	// Create a prometheus StaticConfig for each known host.
 	for i := range hosts {
+		h, err := host.Parse(hosts[i])
+		if err != nil {
+			continue
+		}
 		for _, port := range ports[i] {
 			// We create one record per host to add a unique "machine" label to each one.
 			configs = append(configs, discovery.StaticConfig{
@@ -334,6 +338,7 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 					"type":       "virtual",
 					"deployment": "byos",
 					"managed":    "none",
+					"org":        h.Org,
 				},
 			})
 		}
