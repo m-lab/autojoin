@@ -33,13 +33,13 @@ func (n *Namer) GetServiceAccountName(org string) string {
 	return n.GetProjectsName() + "/serviceAccounts/" + n.GetServiceAccountEmail(org)
 }
 
-// GetSecretID returns a secret ID for this org, e.g. autojoin-sa-key-org.
+// GetSecretID returns a secret ID for this org, e.g. autojoin-serviceaccount-key-org.
 func (n *Namer) GetSecretID(org string) string {
-	return "autojoin-sa-key-" + org
+	return "autojoin-serviceaccount-key-" + org
 }
 
 // GetSecretName returns the google cloud secret resource name, e.g.
-// projects/mlab-foo/secrets/autojoin-sa-key-org
+// projects/mlab-foo/secrets/autojoin-serviceaccount-key-org
 func (n *Namer) GetSecretName(org string) string {
 	return n.GetProjectsName() + "/secrets/" + n.GetSecretID(org)
 }
