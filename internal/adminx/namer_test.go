@@ -19,11 +19,11 @@ func TestNamer_GetProjectsName(t *testing.T) {
 			proj:        "mlab-sandbox",
 			org:         "foo",
 			wantProject: "projects/mlab-sandbox",
-			wantSAID:    "autonode-gcsrw-foo",
-			wantSAEmail: "autonode-gcsrw-foo@mlab-sandbox.iam.gserviceaccount.com",
-			wantSAName:  "projects/mlab-sandbox/serviceAccounts/autonode-gcsrw-foo@mlab-sandbox.iam.gserviceaccount.com",
-			wantSecID:   "autojoin-secret-foo",
-			wantSecName: "projects/mlab-sandbox/secrets/autojoin-secret-foo",
+			wantSAID:    "autonode-foo",
+			wantSAEmail: "autonode-foo@mlab-sandbox.iam.gserviceaccount.com",
+			wantSAName:  "projects/mlab-sandbox/serviceAccounts/autonode-foo@mlab-sandbox.iam.gserviceaccount.com",
+			wantSecID:   "autojoin-sa-key-foo",
+			wantSecName: "projects/mlab-sandbox/secrets/autojoin-sa-key-foo",
 		},
 	}
 	for _, tt := range tests {
