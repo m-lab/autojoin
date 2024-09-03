@@ -111,24 +111,14 @@ func TestServiceAccountsManager_CreateServiceAccount(t *testing.T) {
 }
 
 func TestServiceAccountsManager_CreateKey(t *testing.T) {
-	type fields struct {
-		iams  IAMService
-		Namer *Namer
-	}
-	type args struct {
-		ctx context.Context
-		org string
-	}
 	tests := []struct {
-		name  string
-		iams  IAMService
-		Namer *Namer
-		org   string
-		// want    *iam.ServiceAccount
+		name    string
+		iams    IAMService
+		Namer   *Namer
+		org     string
 		want    *iam.ServiceAccountKey
 		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "success",
 			iams: &fakeIAMService{
