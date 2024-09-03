@@ -13,24 +13,24 @@ import (
 )
 
 type fakeIAMService struct {
-	geterr  error
-	getAcct *iam.ServiceAccount
+	getAcct    *iam.ServiceAccount
+	getAcctErr error
 
-	crerr  error
-	crAcct *iam.ServiceAccount
+	crAcct    *iam.ServiceAccount
+	crAcctErr error
 
-	keyerr error
 	key    *iam.ServiceAccountKey
+	keyErr error
 }
 
 func (f *fakeIAMService) GetServiceAccount(ctx context.Context, saName string) (*iam.ServiceAccount, error) {
-	return f.getAcct, f.geterr
+	return f.getAcct, f.getAcctErr
 }
 func (f *fakeIAMService) CreateServiceAccount(ctx context.Context, projName string, req *iam.CreateServiceAccountRequest) (*iam.ServiceAccount, error) {
-	return f.crAcct, f.crerr
+	return f.crAcct, f.crAcctErr
 }
 func (f *fakeIAMService) CreateKey(ctx context.Context, saName string, req *iam.CreateServiceAccountKeyRequest) (*iam.ServiceAccountKey, error) {
-	return f.key, f.keyerr
+	return f.key, f.keyErr
 }
 
 func createNotFoundErr() error {
@@ -49,7 +49,7 @@ func TestServiceAccountsManager_CreateServiceAccount(t *testing.T) {
 		{
 			name: "success-create",
 			iams: &fakeIAMService{
-				geterr: createNotFoundErr(),
+				getAcctErr: createNotFoundErr(),
 				crAcct: &iam.ServiceAccount{
 					Name: "fake-name",
 				},
@@ -79,8 +79,8 @@ func TestServiceAccountsManager_CreateServiceAccount(t *testing.T) {
 		{
 			name: "error-get-account-not-found",
 			iams: &fakeIAMService{
-				geterr: createNotFoundErr(),
-				crerr:  fmt.Errorf("fake create error"),
+				getAcctErr: createNotFoundErr(),
+				crAcctErr:  fmt.Errorf("fake create error"),
 			},
 			org:     "foo",
 			wantErr: true,
@@ -88,7 +88,7 @@ func TestServiceAccountsManager_CreateServiceAccount(t *testing.T) {
 		{
 			name: "error-get-account-other-failure",
 			iams: &fakeIAMService{
-				geterr: fmt.Errorf("fake get error"),
+				getAcctErr: fmt.Errorf("fake get error"),
 			},
 			org:     "foo",
 			wantErr: true,
@@ -137,14 +137,14 @@ func TestServiceAccountsManager_CreateKey(t *testing.T) {
 		{
 			name: "error-not-found",
 			iams: &fakeIAMService{
-				geterr: createNotFoundErr(),
+				getAcctErr: createNotFoundErr(),
 			},
 			wantErr: true,
 		},
 		{
 			name: "error-other-failure",
 			iams: &fakeIAMService{
-				geterr: fmt.Errorf("fake alternate error"),
+				getAcctErr: fmt.Errorf("fake alternate error"),
 			},
 			wantErr: true,
 		},
@@ -154,7 +154,7 @@ func TestServiceAccountsManager_CreateKey(t *testing.T) {
 				getAcct: &iam.ServiceAccount{
 					Name: "fake-name",
 				},
-				keyerr: fmt.Errorf("fake create error"),
+				keyErr: fmt.Errorf("fake create error"),
 			},
 			wantErr: true,
 		},
