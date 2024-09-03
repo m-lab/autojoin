@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+// IAMService defines the interface used to access the Google Cloud IAM Service.
 type IAMService interface {
 	GetServiceAccount(ctx context.Context, saName string) (*iam.ServiceAccount, error)
 	CreateServiceAccount(ctx context.Context, projName string, req *iam.CreateServiceAccountRequest) (*iam.ServiceAccount, error)
@@ -37,6 +38,7 @@ func NewServiceAccountsManager(ic IAMService, n *Namer) *ServiceAccountsManager 
 func (s *ServiceAccountsManager) CreateServiceAccount(ctx context.Context, org string) (*iam.ServiceAccount, error) {
 	id := s.Namer.GetServiceAccountID(org)
 	if len(id) > 30 {
+		log.Printf("Service account id is too long: %q", s.Namer.GetServiceAccountID(org))
 		return nil, fmt.Errorf("CreateServiceAccount: service account id is too long: %q", id)
 	}
 
@@ -55,12 +57,13 @@ func (s *ServiceAccountsManager) CreateServiceAccount(ctx context.Context, org s
 		}
 		account, err = s.iams.CreateServiceAccount(ctx, s.Namer.GetProjectsName(), req)
 		if err != nil {
+			log.Printf("CreateServiceAccount failed for %q: %v", s.Namer.GetServiceAccountName(org), err)
 			return nil, fmt.Errorf("CreateServiceAccount: %w", err)
 		}
 	case err != nil:
+		log.Printf("CreateServiceAccount failed to lookup %q: %v", s.Namer.GetServiceAccountName(org), err)
 		return nil, err
 	}
-	log.Printf("Found service account: %q\n", account.Name)
 	return account, nil
 }
 
@@ -85,6 +88,7 @@ func (s *ServiceAccountsManager) CreateKey(ctx context.Context, org string) (*ia
 	log.Printf("Creating service account key: %q", account.Name)
 	key, err := s.iams.CreateKey(ctx, account.Name, keyreq)
 	if err != nil {
+		log.Printf("CreateKey failed for %q: %v", account.Name, err)
 		return nil, fmt.Errorf("CreateKey(%s): %w", account.Name, err)
 	}
 	return key, nil
