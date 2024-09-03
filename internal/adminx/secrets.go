@@ -8,6 +8,7 @@ import (
 	"github.com/googleapis/gax-go"
 )
 
+// SecretManagerClient is an interface describing operations on the Google Cloud Secret Manager API.
 type SecretManagerClient interface {
 	GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
 	CreateSecret(ctx context.Context, req *secretmanagerpb.CreateSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
@@ -60,13 +61,14 @@ func (s *SecretManager) CreateSecret(ctx context.Context, org string) error {
 		}
 		secret, err = s.smc.CreateSecret(ctx, crReq)
 		if err != nil {
+			log.Printf("Creating secret failed for %q: %v", s.Namer.GetSecretName(org), err)
 			return err
 		}
 	case err != nil:
+		log.Printf("Get secret failed for %q: %v", s.Namer.GetSecretName(org), err)
 		return err
 	}
-	log.Println("Created or found secret:", secret.Name)
-
+	log.Println("Found secret:", secret.Name)
 	return nil
 }
 
@@ -78,16 +80,19 @@ func (s *SecretManager) LoadOrCreateKey(ctx context.Context, org string) (string
 	case errIsNotFound(err):
 		k, err := s.sam.CreateKey(ctx, org)
 		if err != nil {
+			log.Printf("CreateKey failed for %q: %v", s.Namer.GetServiceAccountName(org), err)
 			return "", err
 		}
 		// Store the new key in secret manager.
 		// NOTE: key is already base64 encoded.
 		err = s.StoreKey(ctx, org, k.PrivateKeyData)
 		if err != nil {
+			log.Printf("StoreKey failed for %q: %v", s.Namer.GetServiceAccountName(org), err)
 			return "", err
 		}
 		key = k.PrivateKeyData
 	case err != nil:
+		log.Printf("Loadkey failed for %q: %v", s.Namer.GetServiceAccountName(org), err)
 		return "", err
 	}
 	return key, nil
