@@ -48,6 +48,13 @@ type ServerAnnotation struct {
 	Type       string
 }
 
+// Credentials contains data for the node to authorize or validate operations.
+type Credentials struct {
+	// ServiceAccountKey contains the base64 encoded service account key for use
+	// by the registered node.
+	ServiceAccountKey string
+}
+
 // Registration is returned for a successful registration request.
 type Registration struct {
 	// Hostname is the dynamic DNS name. Hostname should be available immediately.
@@ -57,4 +64,7 @@ type Registration struct {
 	Annotation *ServerAnnotation `json:",omitempty"`
 	// Heartbeat is the registration message used by the heartbeat service to register with the Locate API.
 	Heartbeat *v2.Registration `json:",omitempty"`
+
+	// Credentials contains node key data.
+	Credentials *Credentials `json:",omitempty"`
 }
