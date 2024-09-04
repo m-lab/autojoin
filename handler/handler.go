@@ -40,6 +40,7 @@ type Server struct {
 	ASN     ASNFinder
 	DNS     dnsiface.Service
 
+	sm         SecretManager
 	dnsTracker DNSTracker
 }
 
@@ -68,15 +69,20 @@ type DNSTracker interface {
 	List() ([]string, [][]string, error)
 }
 
+type SecretManager interface {
+	LoadOrCreateKey(ctx context.Context, org string) (string, error)
+}
+
 // NewServer creates a new Server instance for request handling.
 func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
-	ds dnsiface.Service, tracker DNSTracker) *Server {
+	ds dnsiface.Service, tracker DNSTracker, sm SecretManager) *Server {
 	return &Server{
 		Project: project,
 		Iata:    finder,
 		Maxmind: maxmind,
 		ASN:     asn,
 		DNS:     ds,
+		sm:      sm,
 
 		dnsTracker: tracker,
 	}
@@ -214,6 +220,22 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	// TODO(soltesz): include M-Lab override option
 	param.Probability = getProbability(req)
 	r := register.CreateRegisterResponse(param)
+
+	key, err := s.sm.LoadOrCreateKey(req.Context(), param.Org)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "load.serviceaccount.key",
+			Title:  "could not load service account key for node",
+			Status: http.StatusInternalServerError,
+		}
+		log.Println("loading service account key failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	r.Registration.Credentials = &v0.Credentials{
+		ServiceAccountKey: key,
+	}
 
 	// Register the hostname under the organization zone.
 	m := dnsx.NewManager(s.DNS, s.Project, register.OrgZone(param.Org, s.Project))

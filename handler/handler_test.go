@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -94,6 +95,15 @@ func (f *fakeStatusTracker) Delete(string) error {
 
 func (f *fakeStatusTracker) List() ([]string, [][]string, error) {
 	return f.nodes, f.ports, f.listErr
+}
+
+type fakeSecretManager struct {
+	key string
+	err error
+}
+
+func (f *fakeSecretManager) LoadOrCreateKey(ctx context.Context, org string) (string, error) {
+	return f.key, f.err
 }
 
 func TestServer_Lookup(t *testing.T) {
@@ -225,7 +235,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -247,7 +257,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -257,7 +267,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{})
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -318,29 +328,36 @@ func TestServer_Register(t *testing.T) {
 		ASN      ASNFinder
 		DNS      dnsiface.Service
 		Tracker  DNSTracker
+		sm       SecretManager
 		params   string
 		wantName string
 		wantCode int
 	}{
 		{
-			name:     "success",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990",
-			Iata:     iataFinder,
-			Maxmind:  maxmind,
-			ASN:      fakeASN,
-			DNS:      &fakeDNS{},
-			Tracker:  &fakeStatusTracker{},
+			name:    "success",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
 			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 			wantCode: http.StatusOK,
 		},
 		{
-			name:     "success-probability-invalid-ports-invalid",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid&ports=invalid",
-			Iata:     iataFinder,
-			Maxmind:  maxmind,
-			ASN:      fakeASN,
-			DNS:      &fakeDNS{},
-			Tracker:  &fakeStatusTracker{},
+			name:    "success-probability-invalid-ports-invalid",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid&ports=invalid",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
 			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 			wantCode: http.StatusOK,
 		},
@@ -383,22 +400,40 @@ func TestServer_Register(t *testing.T) {
 			wantCode: http.StatusInternalServerError,
 		},
 		{
-			name:     "error-registration",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
-			Iata:     iataFinder,
-			Maxmind:  maxmind,
-			ASN:      fakeASN,
-			DNS:      &fakeDNS{getErr: errors.New("fake get error")},
+			name:    "error-loading-key",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{getErr: errors.New("fake get error")},
+			sm: &fakeSecretManager{
+				err: fmt.Errorf("fake key load error"),
+			},
 			wantCode: http.StatusInternalServerError,
 		},
 		{
-			name:     "error-tracker-update-error",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
-			Iata:     iataFinder,
-			Maxmind:  maxmind,
-			ASN:      fakeASN,
-			DNS:      &fakeDNS{},
-			Tracker:  &fakeStatusTracker{updateErr: errors.New("update error")},
+			name:    "error-registration",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{getErr: errors.New("fake get error")},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			wantCode: http.StatusInternalServerError,
+		},
+		{
+			name:    "error-tracker-update-error",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{updateErr: errors.New("update error")},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
 			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
 			wantCode: http.StatusInternalServerError,
 		},
@@ -406,7 +441,7 @@ func TestServer_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, tt.sm)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -489,7 +524,7 @@ func TestServer_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker)
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
 			s.Delete(rw, req)
@@ -551,7 +586,7 @@ func TestServer_List(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister)
+			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister, nil)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)
 
