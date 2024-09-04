@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -23,10 +24,11 @@ import (
 )
 
 const (
-	registerEndpoint   = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register"
-	heartbeatFilename  = "registration.json"
-	annotationFilename = "annotation.json"
-	hostnameFilename   = "hostname"
+	registerEndpoint       = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register"
+	heartbeatFilename      = "registration.json"
+	annotationFilename     = "annotation.json"
+	serviceAccountFilename = "service-account-autojoin.json"
+	hostnameFilename       = "hostname"
 )
 
 var (
@@ -146,6 +148,14 @@ func register() {
 	rtx.Must(err, "Failed to write heartbeat file")
 	err = os.WriteFile(path.Join(*outputPath, annotationFilename), annotationJSON, 0644)
 	rtx.Must(err, "Failed to write annotation file")
+
+	// Service account credentials.
+	if r.Registration.Credentials != nil {
+		key, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
+		rtx.Must(err, "Failed to decode service account key")
+		err = os.WriteFile(path.Join(*outputPath, serviceAccountFilename), key, 0644)
+		rtx.Must(err, "Failed to write annotation file")
+	}
 
 	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
 	registerSuccess.Store(true)
