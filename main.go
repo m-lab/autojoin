@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"time"
 
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"github.com/gomodule/redigo/redis"
 	"github.com/m-lab/autojoin/handler"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/adminx"
+	"github.com/m-lab/autojoin/internal/adminx/iamiface"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/maxmind"
 	"github.com/m-lab/autojoin/internal/tracker"
@@ -25,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/api/dns/v1"
+	"google.golang.org/api/iam/v1"
 )
 
 var (
@@ -88,6 +92,16 @@ func main() {
 	rtx.Must(err, "Could not load routeview v4 URL")
 	asn := asnannotator.NewIPv4(mainCtx, rvsrc)
 
+	// Secret Manager & Service Accounts
+	sc, err := secretmanager.NewClient(mainCtx)
+	rtx.Must(err, "failed to create secretmanager client")
+	defer sc.Close()
+	ic, err := iam.NewService(mainCtx)
+	rtx.Must(err, "failed to create iam service client")
+	n := adminx.NewNamer(project)
+	sa := adminx.NewServiceAccountsManager(iamiface.NewIAM(ic), n)
+	sm := adminx.NewSecretManager(sc, n, sa)
+
 	// Connect to memorystore.
 	pool := &redis.Pool{
 		Dial: func() (redis.Conn, error) {
@@ -107,7 +121,7 @@ func main() {
 	defer gc.Stop()
 
 	// Create server.
-	s := handler.NewServer(project, i, mm, asn, d, gc)
+	s := handler.NewServer(project, i, mm, asn, d, gc, sm)
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)
