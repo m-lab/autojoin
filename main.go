@@ -100,7 +100,6 @@ func main() {
 	rtx.Must(err, "failed to create iam service client")
 	n := adminx.NewNamer(project)
 	sa := adminx.NewServiceAccountsManager(iamiface.NewIAM(ic), n)
-	rtx.Must(err, "failed to create sam")
 	sm := adminx.NewSecretManager(sc, n, sa)
 
 	// Connect to memorystore.
