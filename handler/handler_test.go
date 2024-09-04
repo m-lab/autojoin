@@ -328,7 +328,7 @@ func TestServer_Register(t *testing.T) {
 		ASN      ASNFinder
 		DNS      dnsiface.Service
 		Tracker  DNSTracker
-		sm       SecretManager
+		sm       ServiceAccountSecretManager
 		params   string
 		wantName string
 		wantCode int

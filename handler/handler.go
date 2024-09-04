@@ -40,7 +40,7 @@ type Server struct {
 	ASN     ASNFinder
 	DNS     dnsiface.Service
 
-	sm         SecretManager
+	sm         ServiceAccountSecretManager
 	dnsTracker DNSTracker
 }
 
@@ -69,13 +69,14 @@ type DNSTracker interface {
 	List() ([]string, [][]string, error)
 }
 
-type SecretManager interface {
+// ServiceAccountSecretManager is an interface used by the server to allocate service account keys.
+type ServiceAccountSecretManager interface {
 	LoadOrCreateKey(ctx context.Context, org string) (string, error)
 }
 
 // NewServer creates a new Server instance for request handling.
 func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
-	ds dnsiface.Service, tracker DNSTracker, sm SecretManager) *Server {
+	ds dnsiface.Service, tracker DNSTracker, sm ServiceAccountSecretManager) *Server {
 	return &Server{
 		Project: project,
 		Iata:    finder,

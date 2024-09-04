@@ -48,10 +48,10 @@ type ServerAnnotation struct {
 	Type       string
 }
 
-// Credentials contains data for the node to authorize or validate operations.
+// Credentials contains public or private key data needed for node operations.
 type Credentials struct {
 	// ServiceAccountKey contains the base64 encoded service account key for use
-	// by the registered node.
+	// by the node after registration.
 	ServiceAccountKey string
 }
 
