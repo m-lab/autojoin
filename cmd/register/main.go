@@ -151,6 +151,7 @@ func register() {
 
 	// Service account credentials.
 	if r.Registration.Credentials != nil {
+		// TODO(soltesz): abort on nil after deployment.
 		key, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
 		rtx.Must(err, "Failed to decode service account key")
 		err = os.WriteFile(path.Join(*outputPath, serviceAccountFilename), key, 0644)
