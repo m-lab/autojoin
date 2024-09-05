@@ -127,7 +127,7 @@ func appendBindingIfMissing(slice []*cloudresourcemanager.Binding, elems ...*clo
 		found := false
 		// Does slice contain B?
 		for _, a := range slice {
-			if bindingIsEqual(a, b) {
+			if BindingIsEqual(a, b) {
 				// We found a matching binding.
 				found = true
 				break
@@ -143,7 +143,8 @@ func appendBindingIfMissing(slice []*cloudresourcemanager.Binding, elems ...*clo
 	return append(result, slice...), foundMissing
 }
 
-func bindingIsEqual(a *cloudresourcemanager.Binding, b *cloudresourcemanager.Binding) bool {
+// BindingIsEqual checks wether the two provided bindings contain equal conditions, members, and roles.
+func BindingIsEqual(a *cloudresourcemanager.Binding, b *cloudresourcemanager.Binding) bool {
 	if (a.Condition != nil) != (b.Condition != nil) {
 		// Either both should have conditions or neither.
 		return false
