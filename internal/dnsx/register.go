@@ -136,6 +136,8 @@ func (d *Manager) Delete(ctx context.Context, hostname string) (*dns.Change, err
 	return d.Service.ChangeCreate(ctx, d.Project, d.Zone, chg)
 }
 
+// RegisterZone guarantees that the provided zone already exists or is created,
+// unless some error occurs.
 func (d *Manager) RegisterZone(ctx context.Context, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
 	z, err := d.Service.GetManagedZone(ctx, d.Project, zone.Name)
 	switch {
@@ -147,6 +149,8 @@ func (d *Manager) RegisterZone(ctx context.Context, zone *dns.ManagedZone) (*dns
 	return z, nil
 }
 
+// RegisterZoneSplit guarantees that the zone split for the given zone already
+// exists or is created, unless some error occurs.
 func (d *Manager) RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) (*dns.ResourceRecordSet, error) {
 	// Check if the split is already registered in the parent zone.
 	missing := false
