@@ -7,7 +7,7 @@ func ProjectZone(project string) string {
 	return "autojoin-" + strings.TrimPrefix(project, "mlab-") + "-measurement-lab-org"
 }
 
-// OrgZone returns the organization zone name based the given organization and
+// OrgZone returns the organization zone name based on the given organization and
 // project, e.g. "autojoin-foo-sandbox-measurement-lab-org".
 func OrgZone(org, project string) string {
 	// NOTE: prefix prevents name collision with existing zones when the org is "mlab".
