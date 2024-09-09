@@ -41,6 +41,12 @@ func TestOrgZone(t *testing.T) {
 			project: "mlab-sandbox",
 			want:    "autojoin-mlab-sandbox-measurement-lab-org",
 		},
+		{
+			name:    "success",
+			org:     "rnp",
+			project: "mlab-autojoin",
+			want:    "autojoin-rnp-autojoin-measurement-lab-org",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
