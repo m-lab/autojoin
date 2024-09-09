@@ -117,26 +117,3 @@ func TestCreateRegisterResponse(t *testing.T) {
 		})
 	}
 }
-
-func TestOrgZone(t *testing.T) {
-	tests := []struct {
-		name    string
-		org     string
-		project string
-		want    string
-	}{
-		{
-			name:    "success",
-			org:     "mlab",
-			project: "mlab-sandbox",
-			want:    "autojoin-mlab-sandbox-measurement-lab-org",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := OrgZone(tt.org, tt.project); got != tt.want {
-				t.Errorf("OrgZone() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
