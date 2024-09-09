@@ -38,6 +38,13 @@ func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string,
 	return change, nil
 }
 
+func (f *fakeDNS) CreateManagedZone(ctx context.Context, project string, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
+	return nil, nil
+}
+func (f *fakeDNS) GetManagedZone(ctx context.Context, project, zoneName string) (*dns.ManagedZone, error) {
+	return nil, nil
+}
+
 func TestManager_Register(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -249,6 +256,29 @@ func TestManager_Delete(t *testing.T) {
 			}
 			if diff := deep.Equal(got, tt.want); diff != nil {
 				t.Errorf("Manager.Delete() change returned != change expected: %s", strings.Join(diff, "\n"))
+			}
+		})
+	}
+}
+
+func TestOrgZone(t *testing.T) {
+	tests := []struct {
+		name    string
+		org     string
+		project string
+		want    string
+	}{
+		{
+			name:    "success",
+			org:     "mlab",
+			project: "mlab-sandbox",
+			want:    "autojoin-mlab-sandbox-measurement-lab-org",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := OrgZone(tt.org, tt.project); got != tt.want {
+				t.Errorf("OrgZone() = %v, want %v", got, tt.want)
 			}
 		})
 	}

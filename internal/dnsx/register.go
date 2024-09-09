@@ -3,6 +3,8 @@ package dnsx
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"google.golang.org/api/dns/v1"
@@ -15,7 +17,24 @@ var (
 
 	recordTypeA    = "A"
 	recordTypeAAAA = "AAAA"
+	recordTypeNS   = "NS"
 )
+
+// ProjectZone returns the project zone name.
+func ProjectZone(project string) string {
+	return "autojoin-" + strings.TrimPrefix(project, "mlab-") + "-measurement-lab-org"
+}
+
+// OrgZone returns the organization zone name based the given organization and project.
+func OrgZone(org, project string) string {
+	// NOTE: prefix prevents name collision with existing zones when the org is "mlab".
+	return "autojoin-" + org + "-" + strings.TrimPrefix(project, "mlab-") + "-measurement-lab-org"
+}
+
+// OrgDNS returns the DNS name for the given org and project. e.g. "foo.autojoin.measurement-lab.org."
+func OrgDNS(org, project string) string {
+	return org + "." + strings.TrimPrefix(project, "mlab-") + ".measurement-lab.org."
+}
 
 // Manager contains state needed for managing DNS recors.
 type Manager struct {
@@ -115,6 +134,57 @@ func (d *Manager) Delete(ctx context.Context, hostname string) (*dns.Change, err
 		}
 	}
 	return d.Service.ChangeCreate(ctx, d.Project, d.Zone, chg)
+}
+
+func (d *Manager) RegisterZone(ctx context.Context, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
+	z, err := d.Service.GetManagedZone(ctx, d.Project, zone.Name)
+	switch {
+	case isNotFound(err):
+		return d.Service.CreateManagedZone(ctx, d.Project, zone)
+	case err != nil:
+		return nil, err
+	}
+	return z, nil
+}
+
+func (d *Manager) RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) (*dns.ResourceRecordSet, error) {
+	// Check if the split is already registered in the parent zone.
+	missing := false
+	rr, err := d.Service.ResourceRecordSetsGet(ctx, d.Project, d.Zone, zone.DnsName, recordTypeNS)
+	switch {
+	case isNotFound(err):
+		missing = true
+	case err != nil:
+		return nil, err
+	}
+	if !missing {
+		return rr, nil
+	}
+	// Lookup the NS record from the new zone. This should always exist for a valid zone.
+	ns, err := d.Service.ResourceRecordSetsGet(ctx, d.Project, zone.Name, zone.DnsName, recordTypeNS)
+	if err != nil {
+		return nil, err
+	}
+	// Add the returned record to the parent zone.
+	chg := &dns.Change{
+		Additions: []*dns.ResourceRecordSet{
+			{
+				Name:    ns.Name,
+				Type:    ns.Type,
+				Ttl:     ns.Ttl,
+				Rrdatas: ns.Rrdatas,
+			},
+		},
+	}
+	result, err := d.Service.ChangeCreate(ctx, d.Project, d.Zone, chg)
+	if err != nil {
+		return nil, err
+	}
+	if result.Additions == nil || len(result.Additions) == 0 {
+		return nil, fmt.Errorf("DNS Change returned no error and incomplete additions")
+	}
+	// We are guaranteed that Additions is not nil and has at least 1 element.
+	return result.Additions[0], nil
 }
 
 // get retrieves a resource record for the given hostname and rtype.
