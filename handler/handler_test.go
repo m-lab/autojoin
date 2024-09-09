@@ -76,6 +76,12 @@ func (f *fakeDNS) ResourceRecordSetsGet(ctx context.Context, project string, zon
 func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string, change *dns.Change) (*dns.Change, error) {
 	return nil, f.chgErr
 }
+func (f *fakeDNS) CreateManagedZone(ctx context.Context, project string, z *dns.ManagedZone) (*dns.ManagedZone, error) {
+	return nil, nil
+}
+func (f *fakeDNS) GetManagedZone(ctx context.Context, project, zoneName string) (*dns.ManagedZone, error) {
+	return nil, nil
+}
 
 type fakeStatusTracker struct {
 	updateErr error

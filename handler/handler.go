@@ -239,7 +239,7 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	// Register the hostname under the organization zone.
-	m := dnsx.NewManager(s.DNS, s.Project, register.OrgZone(param.Org, s.Project))
+	m := dnsx.NewManager(s.DNS, s.Project, dnsx.OrgZone(param.Org, s.Project))
 	_, err = m.Register(req.Context(), r.Registration.Hostname+".", param.IPv4, param.IPv6)
 	if err != nil {
 		resp.Error = &v2.Error{
@@ -293,7 +293,7 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	m := dnsx.NewManager(s.DNS, s.Project, register.OrgZone(name.Org, s.Project))
+	m := dnsx.NewManager(s.DNS, s.Project, dnsx.OrgZone(name.Org, s.Project))
 	_, err = m.Delete(req.Context(), name.StringAll()+".")
 	if err != nil {
 		resp.Error = &v2.Error{
