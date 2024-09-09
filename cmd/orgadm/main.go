@@ -9,8 +9,11 @@ import (
 	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/adminx/crmiface"
 	"github.com/m-lab/autojoin/internal/adminx/iamiface"
+	"github.com/m-lab/autojoin/internal/dnsx"
+	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/go/rtx"
 	"google.golang.org/api/cloudresourcemanager/v1"
+	"google.golang.org/api/dns/v1"
 	iam "google.golang.org/api/iam/v1"
 )
 
@@ -45,6 +48,10 @@ func main() {
 	sa := adminx.NewServiceAccountsManager(iamiface.NewIAM(ic), nn)
 	rtx.Must(err, "failed to create sam")
 	sm := adminx.NewSecretManager(sc, nn, sa)
-	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm)
+	ds, err := dns.NewService(ctx)
+	rtx.Must(err, "failed to create new dns service")
+	d := dnsx.NewManager(dnsiface.NewCloudDNSService(ds), project, dnsx.ProjectZone(project))
+
+	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d)
 	o.Setup(ctx, org)
 }
