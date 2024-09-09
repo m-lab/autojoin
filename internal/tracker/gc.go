@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/m-lab/autojoin/internal/dnsname"
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
-	"github.com/m-lab/autojoin/internal/register"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/locate/memorystore"
 )
@@ -133,7 +133,7 @@ func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, [][]string, error
 				// TODO(rd): count errors with a Prometheus metric
 			}
 
-			m := dnsx.NewManager(gc.dns, gc.project, register.OrgZone(name.Org, gc.project))
+			m := dnsx.NewManager(gc.dns, gc.project, dnsname.OrgZone(name.Org, gc.project))
 			_, err = m.Delete(context.Background(), name.StringAll()+".")
 			if err != nil {
 				log.Printf("Failed to delete DNS entry for %s: %v", name, err)
