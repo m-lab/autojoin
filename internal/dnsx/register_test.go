@@ -38,6 +38,13 @@ func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string,
 	return change, nil
 }
 
+func (f *fakeDNS) CreateManagedZone(ctx context.Context, project string, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
+	return nil, nil
+}
+func (f *fakeDNS) GetManagedZone(ctx context.Context, project, zoneName string) (*dns.ManagedZone, error) {
+	return nil, nil
+}
+
 func TestManager_Register(t *testing.T) {
 	tests := []struct {
 		name     string

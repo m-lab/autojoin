@@ -80,7 +80,7 @@ func main() {
 	// Setup DNS service.
 	ds, err := dns.NewService(mainCtx)
 	rtx.Must(err, "failed to create new dns service")
-	d := &dnsiface.CloudDNSService{Service: ds}
+	d := dnsiface.NewCloudDNSService(ds)
 
 	// Setup IATA, maxmind, and asn sources.
 	i, err := iata.New(mainCtx, iataSrc.URL)
