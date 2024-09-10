@@ -77,7 +77,7 @@ func (o *Org) Setup(ctx context.Context, org string) error {
 // RegisterDNS creates the organization zone and the zone split within the project zone.
 func (o *Org) RegisterDNS(ctx context.Context, org string) error {
 	zone, err := o.dns.RegisterZone(ctx, &dns.ManagedZone{
-		Description: "For autojoin registered nodes from org: " + org,
+		Description: "Autojoin registered nodes from org: " + org,
 		Name:        dnsname.OrgZone(org, o.Project),
 		DnsName:     dnsname.OrgDNS(org, o.Project),
 		DnssecConfig: &dns.ManagedZoneDnsSecConfig{
