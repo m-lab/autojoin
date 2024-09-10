@@ -54,6 +54,6 @@ func main() {
 
 	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d)
 	err = o.Setup(ctx, org)
-	rtx.Must(err, "failed to setup new organization: "+org)
+	rtx.Must(err, "failed to set up new organization: "+org)
 	log.Println("okay")
 }
