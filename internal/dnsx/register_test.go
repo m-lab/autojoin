@@ -43,14 +43,10 @@ func (f *fakeDNS2) CreateManagedZone(ctx context.Context, project string, zone *
 }
 
 type fakeDNS struct {
-	record        []*dns.ResourceRecordSet
-	i             int
-	getErr        error
-	chgErr        error
-	getZone       *dns.ManagedZone
-	getZoneErr    error
-	createZone    *dns.ManagedZone
-	createZoneErr error
+	record []*dns.ResourceRecordSet
+	i      int
+	getErr error
+	chgErr error
 }
 
 func (f *fakeDNS) ResourceRecordSetsGet(ctx context.Context, project string, zone string, name string, rtype string) (*dns.ResourceRecordSet, error) {
@@ -72,12 +68,12 @@ func (f *fakeDNS) ChangeCreate(ctx context.Context, project string, zone string,
 	return change, nil
 }
 
-func (f *fakeDNS) GetManagedZone(ctx context.Context, project, zoneName string) (*dns.ManagedZone, error) {
-	return f.getZone, f.getZoneErr
+func (f *fakeDNS) CreateManagedZone(ctx context.Context, project string, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
+	return nil, nil
 }
 
-func (f *fakeDNS) CreateManagedZone(ctx context.Context, project string, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
-	return f.createZone, f.createZoneErr
+func (f *fakeDNS) GetManagedZone(ctx context.Context, project, zoneName string) (*dns.ManagedZone, error) {
+	return nil, nil
 }
 
 func TestManager_Register(t *testing.T) {
