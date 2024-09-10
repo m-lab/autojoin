@@ -9,8 +9,12 @@ import (
 	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/adminx/crmiface"
 	"github.com/m-lab/autojoin/internal/adminx/iamiface"
+	"github.com/m-lab/autojoin/internal/dnsname"
+	"github.com/m-lab/autojoin/internal/dnsx"
+	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/go/rtx"
 	"google.golang.org/api/cloudresourcemanager/v1"
+	"google.golang.org/api/dns/v1"
 	iam "google.golang.org/api/iam/v1"
 )
 
@@ -38,13 +42,18 @@ func main() {
 	defer sc.Close()
 	ic, err := iam.NewService(ctx)
 	rtx.Must(err, "failed to create iam service client")
-	log.Println("Creating SAM & KEYS")
 	nn := adminx.NewNamer(project)
 	crm, err := cloudresourcemanager.NewService(ctx)
 	rtx.Must(err, "failed to allocate new cloud resource manager client")
 	sa := adminx.NewServiceAccountsManager(iamiface.NewIAM(ic), nn)
 	rtx.Must(err, "failed to create sam")
 	sm := adminx.NewSecretManager(sc, nn, sa)
-	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm)
-	o.Setup(ctx, org)
+	ds, err := dns.NewService(ctx)
+	rtx.Must(err, "failed to create new dns service")
+	d := dnsx.NewManager(dnsiface.NewCloudDNSService(ds), project, dnsname.ProjectZone(project))
+
+	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d)
+	err = o.Setup(ctx, org)
+	rtx.Must(err, "failed to set up new organization: "+org)
+	log.Println("okay")
 }

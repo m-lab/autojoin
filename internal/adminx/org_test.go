@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+	"github.com/m-lab/autojoin/internal/dnsname"
 	"google.golang.org/api/cloudresourcemanager/v1"
+	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/iam/v1"
 )
 
@@ -33,6 +35,21 @@ func (f *fakeCRM) SetIamPolicy(ctx context.Context, req *cloudresourcemanager.Se
 	return f.setPolicyErr
 }
 
+type fakeDNS struct {
+	regZone     *dns.ManagedZone
+	regZoneErr  error
+	regSplit    *dns.ResourceRecordSet
+	regSplitErr error
+}
+
+func (f *fakeDNS) RegisterZone(ctx context.Context, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
+	return f.regZone, f.regZoneErr
+}
+
+func (f *fakeDNS) RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) (*dns.ResourceRecordSet, error) {
+	return f.regSplit, f.regSplitErr
+}
+
 func TestOrg_Setup(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -40,6 +57,7 @@ func TestOrg_Setup(t *testing.T) {
 		crm     CRM
 		sam     IAMService
 		smc     SecretManagerClient
+		dns     DNS
 		org     string
 		wantErr bool
 	}{
@@ -63,6 +81,66 @@ func TestOrg_Setup(t *testing.T) {
 			smc: &fakeSMC{
 				getSec: &secretmanagerpb.Secret{Name: "okay"},
 			},
+			dns: &fakeDNS{
+				regZone: &dns.ManagedZone{
+					Name:    dnsname.OrgZone("foo", "mlab-foo"),
+					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
+				},
+			},
+		},
+		{
+			name: "error-register-zone",
+			crm: &fakeCRM{
+				getPolicy: &cloudresourcemanager.Policy{
+					Bindings: []*cloudresourcemanager.Binding{
+						{
+							Members: []string{"foo"},
+							Role:    "roles/fooWriter",
+						},
+					},
+				},
+			},
+			sam: &fakeIAMService{
+				getAcct: &iam.ServiceAccount{
+					Name: "foo",
+				},
+			},
+			smc: &fakeSMC{
+				getSec: &secretmanagerpb.Secret{Name: "okay"},
+			},
+			dns: &fakeDNS{
+				regZoneErr: fmt.Errorf("fake zone registration error"),
+			},
+			wantErr: true,
+		},
+		{
+			name: "error-register-split",
+			crm: &fakeCRM{
+				getPolicy: &cloudresourcemanager.Policy{
+					Bindings: []*cloudresourcemanager.Binding{
+						{
+							Members: []string{"foo"},
+							Role:    "roles/fooWriter",
+						},
+					},
+				},
+			},
+			sam: &fakeIAMService{
+				getAcct: &iam.ServiceAccount{
+					Name: "foo",
+				},
+			},
+			smc: &fakeSMC{
+				getSec: &secretmanagerpb.Secret{Name: "okay"},
+			},
+			dns: &fakeDNS{
+				regZone: &dns.ManagedZone{
+					Name:    dnsname.OrgZone("foo", "mlab-foo"),
+					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
+				},
+				regSplitErr: fmt.Errorf("fake split register error"),
+			},
+			wantErr: true,
 		},
 		{
 			name: "success-equal-bindings",
@@ -91,6 +169,12 @@ func TestOrg_Setup(t *testing.T) {
 			},
 			smc: &fakeSMC{
 				getSec: &secretmanagerpb.Secret{Name: "okay"},
+			},
+			dns: &fakeDNS{
+				regZone: &dns.ManagedZone{
+					Name:    dnsname.OrgZone("foo", "mlab-foo"),
+					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
+				},
 			},
 		},
 		{
@@ -160,7 +244,7 @@ func TestOrg_Setup(t *testing.T) {
 			n := NewNamer("mlab-foo")
 			sam := NewServiceAccountsManager(tt.sam, n)
 			sm := NewSecretManager(tt.smc, n, sam)
-			o := NewOrg("mlab-foo", tt.crm, sam, sm)
+			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns)
 			if err := o.Setup(context.Background(), "foobar"); (err != nil) != tt.wantErr {
 				t.Errorf("Org.Setup() error = %v, wantErr %v", err, tt.wantErr)
 			}

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/m-lab/autojoin/internal/dnsname"
 	"golang.org/x/exp/slices"
 
 	"google.golang.org/api/cloudresourcemanager/v1"
+	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/iam/v1"
 )
 
@@ -19,6 +21,12 @@ var (
 	expReadFmt = (`resource.name.startsWith("projects/_/buckets/archive-%s") ||` +
 		` resource.name.startsWith("projects/_/buckets/staging-%s")`)
 )
+
+// DNS is a simplified interface to the Google Cloud DNS API.
+type DNS interface {
+	RegisterZone(ctx context.Context, zone *dns.ManagedZone) (*dns.ManagedZone, error)
+	RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) (*dns.ResourceRecordSet, error)
+}
 
 // CRM is a simplified interface to the Google Cloud Resource Manager API.
 type CRM interface {
@@ -32,15 +40,17 @@ type Org struct {
 	crm     CRM
 	sam     *ServiceAccountsManager
 	sm      *SecretManager
+	dns     DNS
 }
 
 // NewOrg creates a new Org instance for setting up a new organization.
-func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager) *Org {
+func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS) *Org {
 	return &Org{
 		Project: project,
 		crm:     crm,
 		sam:     sam,
 		sm:      sm,
+		dns:     dns,
 	}
 }
 
@@ -58,6 +68,29 @@ func (o *Org) Setup(ctx context.Context, org string) error {
 	// Create secret with no versions.
 	err = o.sm.CreateSecret(ctx, org)
 	if err != nil {
+		return err
+	}
+	// Create DNS zone and zone split.
+	return o.RegisterDNS(ctx, org)
+}
+
+// RegisterDNS creates the organization zone and the zone split within the project zone.
+func (o *Org) RegisterDNS(ctx context.Context, org string) error {
+	zone, err := o.dns.RegisterZone(ctx, &dns.ManagedZone{
+		Description: "Autojoin registered nodes from org: " + org,
+		Name:        dnsname.OrgZone(org, o.Project),
+		DnsName:     dnsname.OrgDNS(org, o.Project),
+		DnssecConfig: &dns.ManagedZoneDnsSecConfig{
+			State: "on",
+		},
+	})
+	if err != nil {
+		log.Println("failed to register zone:", dnsname.OrgZone(org, o.Project), err)
+		return err
+	}
+	_, err = o.dns.RegisterZoneSplit(ctx, zone)
+	if err != nil {
+		log.Println("failed to register zone split:", dnsname.OrgZone(org, o.Project), err)
 		return err
 	}
 	return nil
