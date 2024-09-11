@@ -35,7 +35,7 @@ var (
 	listenPort   string
 	project      string
 	redisAddr    string
-	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.10/iata-icao.csv")
+	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.21/iata-icao.csv")
 	maxmindSrc   = flagx.URL{}
 	routeviewSrc = flagx.URL{}
 	gcTTL        time.Duration
