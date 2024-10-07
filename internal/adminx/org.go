@@ -19,7 +19,8 @@ var (
 		` resource.name.startsWith("projects/_/buckets/staging-%s/objects/autoload/v2/%s")`)
 	// Restrict reads to the archive bucket. Needed so nodes can read jostler schemas.
 	expReadFmt = (`resource.name.startsWith("projects/_/buckets/archive-%s") ||` +
-		` resource.name.startsWith("projects/_/buckets/staging-%s")`)
+		` resource.name.startsWith("projects/_/buckets/downloader-%s")` +
+		` resource.name.startsWith("projects/_/buckets/staging-%s") ||`)
 )
 
 // DNS is a simplified interface to the Google Cloud DNS API.
