@@ -370,9 +370,13 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 
 	var results interface{}
 	format := req.URL.Query().Get("format")
-	if format == "prometheus" {
+	switch format {
+	case "prometheus":
 		results = configs
-	} else {
+	case "servers":
+		resp.Servers = hosts
+		results = resp
+	default:
 		// NOTE: default format is not valid for prometheus StaticConfig format.
 		resp.StaticConfig = configs
 		results = resp
