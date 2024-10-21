@@ -576,7 +576,7 @@ func TestServer_List(t *testing.T) {
 			params: "?format=prometheus",
 			lister: &fakeStatusTracker{
 				nodes: []string{"test1"},
-				ports: [][]string{[]string{}},
+				ports: [][]string{{}},
 			},
 			wantCode:   http.StatusOK,
 			wantLength: 0,
@@ -586,7 +586,17 @@ func TestServer_List(t *testing.T) {
 			params: "?format=servers",
 			lister: &fakeStatusTracker{
 				nodes: []string{"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org"},
-				ports: [][]string{[]string{"9990"}},
+				ports: [][]string{{"9990"}},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 1,
+		},
+		{
+			name:   "success-script-exporter",
+			params: "?format=script-exporter",
+			lister: &fakeStatusTracker{
+				nodes: []string{"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org"},
+				ports: [][]string{{"9990"}},
 			},
 			wantCode:   http.StatusOK,
 			wantLength: 1,
@@ -617,7 +627,7 @@ func TestServer_List(t *testing.T) {
 			raw := rw.Body.Bytes()
 			configs := []discovery.StaticConfig{}
 			length := 0
-			if strings.Contains(tt.params, "prometheus") {
+			if strings.Contains(tt.params, "prometheus") || strings.Contains(tt.params, "script-exporter") {
 				err = json.Unmarshal(raw, &configs)
 				length = len(configs)
 			} else if strings.Contains(tt.params, "servers") {
