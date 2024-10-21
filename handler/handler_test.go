@@ -593,7 +593,7 @@ func TestServer_List(t *testing.T) {
 		},
 		{
 			name:   "success-script-exporter",
-			params: "?format=script-exporter",
+			params: "?format=script-exporter&service=ndt7_client_byos",
 			lister: &fakeStatusTracker{
 				nodes: []string{"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org"},
 				ports: [][]string{{"9990"}},

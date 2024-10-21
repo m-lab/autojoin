@@ -367,16 +367,20 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 			ports[i] = p
 		}
 		for _, port := range ports[i] {
+			labels := map[string]string{
+				"machine":    hosts[i],
+				"type":       "virtual",
+				"deployment": "byos",
+				"managed":    "none",
+				"org":        h.Org,
+			}
+			if req.URL.Query().Get("service") != "" {
+				labels["service"] = req.URL.Query().Get("service")
+			}
 			// We create one record per host to add a unique "machine" label to each one.
 			configs = append(configs, discovery.StaticConfig{
 				Targets: []string{hosts[i] + port},
-				Labels: map[string]string{
-					"machine":    hosts[i],
-					"type":       "virtual",
-					"deployment": "byos",
-					"managed":    "none",
-					"org":        h.Org,
-				},
+				Labels:  labels,
 			})
 		}
 	}
