@@ -576,10 +576,30 @@ func TestServer_List(t *testing.T) {
 			params: "?format=prometheus",
 			lister: &fakeStatusTracker{
 				nodes: []string{"test1"},
-				ports: [][]string{[]string{}},
+				ports: [][]string{{}},
 			},
 			wantCode:   http.StatusOK,
 			wantLength: 0,
+		},
+		{
+			name:   "success-servers",
+			params: "?format=servers",
+			lister: &fakeStatusTracker{
+				nodes: []string{"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org"},
+				ports: [][]string{{"9990"}},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 1,
+		},
+		{
+			name:   "success-script-exporter",
+			params: "?format=script-exporter&service=ndt7_client_byos",
+			lister: &fakeStatusTracker{
+				nodes: []string{"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org"},
+				ports: [][]string{{"9990"}},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 1,
 		},
 		{
 			name:   "error-internal",
@@ -606,17 +626,24 @@ func TestServer_List(t *testing.T) {
 			var err error
 			raw := rw.Body.Bytes()
 			configs := []discovery.StaticConfig{}
-			if strings.Contains(tt.params, "prometheus") {
+			length := 0
+			if strings.Contains(tt.params, "prometheus") || strings.Contains(tt.params, "script-exporter") {
 				err = json.Unmarshal(raw, &configs)
+				length = len(configs)
+			} else if strings.Contains(tt.params, "servers") {
+				resp := v0.ListResponse{}
+				err = json.Unmarshal(raw, &resp)
+				length = len(resp.Servers)
 			} else {
 				resp := v0.ListResponse{}
 				err = json.Unmarshal(raw, &resp)
 				configs = resp.StaticConfig
+				length = len(configs)
 			}
 			testingx.Must(t, err, "failed to unmarshal response")
 
-			if len(configs) != tt.wantLength {
-				t.Errorf("List() returned wrong length; got %d, want %d", len(configs), tt.wantLength)
+			if length != tt.wantLength {
+				t.Errorf("List() returned wrong length; got %d, want %d", length, tt.wantLength)
 			}
 		})
 	}

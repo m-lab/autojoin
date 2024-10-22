@@ -32,6 +32,7 @@ type DeleteResponse struct {
 type ListResponse struct {
 	Error        *v2.Error                `json:",omitempty"`
 	StaticConfig []discovery.StaticConfig `json:",omitempty"`
+	Servers      []string                 `json:",omitempty"`
 }
 
 // Network contains IPv4 and IPv6 addresses.

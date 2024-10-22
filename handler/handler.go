@@ -347,32 +347,56 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	format := req.URL.Query().Get("format")
+
 	// Create a prometheus StaticConfig for each known host.
 	for i := range hosts {
 		h, err := host.Parse(hosts[i])
 		if err != nil {
 			continue
 		}
+		if format == "script-exporter" {
+			// NOTE: do not assign any ports for script exporter.
+			ports[i] = []string{""}
+		} else {
+			// Convert port strings to ":<port>".
+			p := []string{}
+			for j := range ports[i] {
+				p = append(p, ":"+ports[i][j])
+			}
+			ports[i] = p
+		}
 		for _, port := range ports[i] {
+			labels := map[string]string{
+				"machine":    hosts[i],
+				"type":       "virtual",
+				"deployment": "byos",
+				"managed":    "none",
+				"org":        h.Org,
+			}
+			if req.URL.Query().Get("service") != "" {
+				labels["service"] = req.URL.Query().Get("service")
+			}
 			// We create one record per host to add a unique "machine" label to each one.
 			configs = append(configs, discovery.StaticConfig{
-				Targets: []string{hosts[i] + ":" + port},
-				Labels: map[string]string{
-					"machine":    hosts[i],
-					"type":       "virtual",
-					"deployment": "byos",
-					"managed":    "none",
-					"org":        h.Org,
-				},
+				Targets: []string{hosts[i] + port},
+				Labels:  labels,
 			})
 		}
 	}
 
 	var results interface{}
-	format := req.URL.Query().Get("format")
-	if format == "prometheus" {
+	switch format {
+	case "script-exporter":
+		fallthrough
+	case "blackbox":
+		fallthrough
+	case "prometheus": // TODO(soltesz): retire this name.
 		results = configs
-	} else {
+	case "servers":
+		resp.Servers = hosts
+		results = resp
+	default:
 		// NOTE: default format is not valid for prometheus StaticConfig format.
 		resp.StaticConfig = configs
 		results = resp
