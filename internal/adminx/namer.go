@@ -43,3 +43,13 @@ func (n *Namer) GetSecretID(org string) string {
 func (n *Namer) GetSecretName(org string) string {
 	return n.GetProjectsName() + "/secrets/" + n.GetSecretID(org)
 }
+
+func (n *Namer) GetAPIKeyParent() string {
+	return n.GetProjectsName() + "/locations/global"
+}
+func (n *Namer) GetAPIKeyName(org string) string {
+	return n.GetAPIKeyParent() + "/keys/" + n.GetAPIKeyID(org)
+}
+func (n *Namer) GetAPIKeyID(org string) string {
+	return "autojoin-key-" + org
+}
