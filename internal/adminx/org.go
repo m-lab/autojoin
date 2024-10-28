@@ -19,8 +19,8 @@ var (
 		` resource.name.startsWith("projects/_/buckets/staging-%s/objects/autoload/v2/%s")`)
 	// Restrict reads to the archive bucket. Needed so nodes can read jostler schemas.
 	expReadFmt = (`resource.name.startsWith("projects/_/buckets/archive-%s") ||` +
-		` resource.name.startsWith("projects/_/buckets/downloader-%s")` +
-		` resource.name.startsWith("projects/_/buckets/staging-%s") ||`)
+		` resource.name.startsWith("projects/_/buckets/downloader-%s") ||` +
+		` resource.name.startsWith("projects/_/buckets/staging-%s")`)
 )
 
 // DNS is a simplified interface to the Google Cloud DNS API.
@@ -35,6 +35,10 @@ type CRM interface {
 	SetIamPolicy(ctx context.Context, req *cloudresourcemanager.SetIamPolicyRequest) error
 }
 
+type Keys interface {
+	CreateKey(ctx context.Context, org string) (string, error)
+}
+
 // Org contains fields needed to setup a new organization for Autojoined nodes.
 type Org struct {
 	Project string
@@ -42,37 +46,43 @@ type Org struct {
 	sam     *ServiceAccountsManager
 	sm      *SecretManager
 	dns     DNS
+	keys    Keys
 }
 
 // NewOrg creates a new Org instance for setting up a new organization.
-func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS) *Org {
+func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS, k Keys) *Org {
 	return &Org{
 		Project: project,
 		crm:     crm,
 		sam:     sam,
 		sm:      sm,
 		dns:     dns,
+		keys:    k,
 	}
 }
 
 // Setup should be run once on org creation to create all Google Cloud resources needed by the Autojoin API.
-func (o *Org) Setup(ctx context.Context, org string) error {
+func (o *Org) Setup(ctx context.Context, org string) (string, error) {
 	// Create service account with no keys.
 	sa, err := o.sam.CreateServiceAccount(ctx, org)
 	if err != nil {
-		return err
+		return "", err
 	}
 	err = o.ApplyPolicy(ctx, org, sa)
 	if err != nil {
-		return err
+		return "", err
 	}
 	// Create secret with no versions.
 	err = o.sm.CreateSecret(ctx, org)
 	if err != nil {
-		return err
+		return "", err
 	}
 	// Create DNS zone and zone split.
-	return o.RegisterDNS(ctx, org)
+	err = o.RegisterDNS(ctx, org)
+	if err != nil {
+		return "", err
+	}
+	return o.keys.CreateKey(ctx, org)
 }
 
 // RegisterDNS creates the organization zone and the zone split within the project zone.
@@ -124,7 +134,7 @@ func (o *Org) ApplyPolicy(ctx context.Context, org string, account *iam.ServiceA
 		{
 			Condition: &cloudresourcemanager.Expr{
 				Title:      "Read restriction for " + org,
-				Expression: fmt.Sprintf(expReadFmt, o.Project, o.Project),
+				Expression: fmt.Sprintf(expReadFmt, o.Project, o.Project, o.Project),
 			},
 			Members: []string{"serviceAccount:" + account.Email},
 			Role:    "roles/storage.objectViewer",
