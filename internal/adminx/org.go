@@ -35,29 +35,32 @@ type CRM interface {
 	SetIamPolicy(ctx context.Context, req *cloudresourcemanager.SetIamPolicyRequest) error
 }
 
+// Keys is the interface used to manage organization API keys.
 type Keys interface {
 	CreateKey(ctx context.Context, org string) (string, error)
 }
 
 // Org contains fields needed to setup a new organization for Autojoined nodes.
 type Org struct {
-	Project string
-	crm     CRM
-	sam     *ServiceAccountsManager
-	sm      *SecretManager
-	dns     DNS
-	keys    Keys
+	Project   string
+	crm       CRM
+	sam       *ServiceAccountsManager
+	sm        *SecretManager
+	dns       DNS
+	keys      Keys
+	setPolicy bool
 }
 
 // NewOrg creates a new Org instance for setting up a new organization.
-func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS, k Keys) *Org {
+func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS, k Keys, setPolicy bool) *Org {
 	return &Org{
-		Project: project,
-		crm:     crm,
-		sam:     sam,
-		sm:      sm,
-		dns:     dns,
-		keys:    k,
+		Project:   project,
+		crm:       crm,
+		sam:       sam,
+		sm:        sm,
+		dns:       dns,
+		keys:      k,
+		setPolicy: setPolicy,
 	}
 }
 
@@ -68,9 +71,11 @@ func (o *Org) Setup(ctx context.Context, org string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	err = o.ApplyPolicy(ctx, org, sa)
-	if err != nil {
-		return "", err
+	if o.setPolicy {
+		err = o.ApplyPolicy(ctx, org, sa)
+		if err != nil {
+			return "", err
+		}
 	}
 	// Create secret with no versions.
 	err = o.sm.CreateSecret(ctx, org)

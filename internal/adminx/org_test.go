@@ -2,6 +2,7 @@ package adminx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -69,6 +70,7 @@ func TestOrg_Setup(t *testing.T) {
 		dns     DNS
 		org     string
 		keys    Keys
+		policy  bool
 		wantErr bool
 	}{
 		{
@@ -100,6 +102,7 @@ func TestOrg_Setup(t *testing.T) {
 			keys: &fakeAPIKeys{
 				createKey: "this-is-a-fake-key",
 			},
+			policy: true,
 		},
 		{
 			name: "error-register-zone",
@@ -124,6 +127,7 @@ func TestOrg_Setup(t *testing.T) {
 			dns: &fakeDNS{
 				regZoneErr: fmt.Errorf("fake zone registration error"),
 			},
+			policy:  true,
 			wantErr: true,
 		},
 		{
@@ -153,6 +157,7 @@ func TestOrg_Setup(t *testing.T) {
 				},
 				regSplitErr: fmt.Errorf("fake split register error"),
 			},
+			policy:  true,
 			wantErr: true,
 		},
 		{
@@ -192,12 +197,14 @@ func TestOrg_Setup(t *testing.T) {
 			keys: &fakeAPIKeys{
 				createKey: "this-is-a-fake-key",
 			},
+			policy: true,
 		},
 		{
 			name: "error-create-service-account",
 			sam: &fakeIAMService{
 				getAcctErr: fmt.Errorf("fake error messages"),
 			},
+			policy:  true,
 			wantErr: true,
 		},
 		{
@@ -220,6 +227,7 @@ func TestOrg_Setup(t *testing.T) {
 			smc: &fakeSMC{
 				getSecErr: fmt.Errorf("fake create secret error"),
 			},
+			policy:  true,
 			wantErr: true,
 		},
 		{
@@ -232,6 +240,7 @@ func TestOrg_Setup(t *testing.T) {
 					Name: "foo",
 				},
 			},
+			policy:  true,
 			wantErr: true,
 		},
 		{
@@ -252,7 +261,32 @@ func TestOrg_Setup(t *testing.T) {
 					Name: "foo",
 				},
 			},
+			policy:  true,
 			wantErr: true,
+		},
+		{
+			name: "success-setpolicy-false",
+			crm: &fakeCRM{
+				getPolicyErr: errors.New("fake error"),
+			},
+			sam: &fakeIAMService{
+				getAcct: &iam.ServiceAccount{
+					Name: "foo",
+				},
+			},
+			smc: &fakeSMC{
+				getSec: &secretmanagerpb.Secret{Name: "okay"},
+			},
+			dns: &fakeDNS{
+				regZone: &dns.ManagedZone{
+					Name:    dnsname.OrgZone("foo", "mlab-foo"),
+					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
+				},
+			},
+			keys: &fakeAPIKeys{
+				createKey: "this-is-a-fake-key",
+			},
+			policy: false,
 		},
 	}
 	for _, tt := range tests {
@@ -260,7 +294,7 @@ func TestOrg_Setup(t *testing.T) {
 			n := NewNamer("mlab-foo")
 			sam := NewServiceAccountsManager(tt.sam, n)
 			sm := NewSecretManager(tt.smc, n, sam)
-			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns, tt.keys)
+			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns, tt.keys, tt.policy)
 			if _, err := o.Setup(context.Background(), "foobar"); (err != nil) != tt.wantErr {
 				t.Errorf("Org.Setup() error = %v, wantErr %v", err, tt.wantErr)
 			}

@@ -21,13 +21,15 @@ import (
 )
 
 var (
-	org     string
-	project string
+	org       string
+	project   string
+	setPolicy bool
 )
 
 func init() {
 	flag.StringVar(&org, "org", "", "Organization name. Must match name assigned by M-Lab")
 	flag.StringVar(&project, "project", "", "GCP project to create organization resources")
+	flag.BoolVar(&setPolicy, "setiampolicy", true, "Whether to set IAM policy for service accounts")
 }
 
 func main() {
@@ -58,7 +60,7 @@ func main() {
 	k := adminx.NewAPIKeys(project, keysiface.NewKeys(ac), nn)
 	defer ac.Close()
 
-	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d, k)
+	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d, k, setPolicy)
 	key, err := o.Setup(ctx, org)
 	rtx.Must(err, "failed to set up new organization: "+org)
 	log.Println("Setup okay - org:", org, "key:", key)
