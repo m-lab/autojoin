@@ -44,12 +44,20 @@ func (n *Namer) GetSecretName(org string) string {
 	return n.GetProjectsName() + "/secrets/" + n.GetSecretID(org)
 }
 
+// GetAPIKeyParent returns the parent API key resource name for this project.
+// e.g. projects/mlab-foo/locations/global
 func (n *Namer) GetAPIKeyParent() string {
 	return n.GetProjectsName() + "/locations/global"
 }
+
+// GetAPIKeyName returns the API key resource name for the given org.
+// e.g. projects/mlab-foo/locations/global/keys/autojoin-key-foo
 func (n *Namer) GetAPIKeyName(org string) string {
 	return n.GetAPIKeyParent() + "/keys/" + n.GetAPIKeyID(org)
 }
+
+// GetAPIKeyID returns the API key resource ID for the given org.
+// e.g. autojoin-key-foo
 func (n *Namer) GetAPIKeyID(org string) string {
 	return "autojoin-key-" + org
 }
