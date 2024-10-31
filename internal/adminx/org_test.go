@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"testing"
 
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
@@ -24,6 +25,7 @@ type fakeCRM struct {
 	getPolicyErr error
 	setPolicyErr error
 	bindingCount int
+	policy       *cloudresourcemanager.Policy
 }
 
 func (f *fakeCRM) GetIamPolicy(ctx context.Context, req *cloudresourcemanager.GetIamPolicyRequest) (*cloudresourcemanager.Policy, error) {
@@ -32,6 +34,7 @@ func (f *fakeCRM) GetIamPolicy(ctx context.Context, req *cloudresourcemanager.Ge
 
 func (f *fakeCRM) SetIamPolicy(ctx context.Context, req *cloudresourcemanager.SetIamPolicyRequest) error {
 	f.bindingCount = len(req.Policy.Bindings)
+	f.policy = req.Policy
 	return f.setPolicyErr
 }
 
@@ -50,16 +53,28 @@ func (f *fakeDNS) RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) 
 	return f.regSplit, f.regSplitErr
 }
 
+type fakeAPIKeys struct {
+	createKey    string
+	createKeyErr error
+}
+
+func (f *fakeAPIKeys) CreateKey(ctx context.Context, org string) (string, error) {
+	return f.createKey, f.createKeyErr
+}
+
 func TestOrg_Setup(t *testing.T) {
 	tests := []struct {
-		name    string
-		project string
-		crm     CRM
-		sam     IAMService
-		smc     SecretManagerClient
-		dns     DNS
-		org     string
-		wantErr bool
+		name         string
+		project      string
+		crm          *fakeCRM
+		sam          IAMService
+		smc          SecretManagerClient
+		dns          DNS
+		org          string
+		keys         Keys
+		updateTables bool
+		bindingCount int
+		wantErr      bool
 	}{
 		{
 			name: "success",
@@ -87,6 +102,10 @@ func TestOrg_Setup(t *testing.T) {
 					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
 				},
 			},
+			keys: &fakeAPIKeys{
+				createKey: "this-is-a-fake-key",
+			},
+			bindingCount: 3,
 		},
 		{
 			name: "error-register-zone",
@@ -176,6 +195,10 @@ func TestOrg_Setup(t *testing.T) {
 					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
 				},
 			},
+			keys: &fakeAPIKeys{
+				createKey: "this-is-a-fake-key",
+			},
+			bindingCount: 3,
 		},
 		{
 			name: "error-create-service-account",
@@ -238,15 +261,64 @@ func TestOrg_Setup(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "success-update-tables-policy",
+			crm: &fakeCRM{
+				getPolicy: &cloudresourcemanager.Policy{
+					Bindings: []*cloudresourcemanager.Binding{
+						{
+							Members: []string{"foo"},
+							Role:    "roles/fooWriter",
+						},
+					},
+				},
+			},
+			sam: &fakeIAMService{
+				getAcct: &iam.ServiceAccount{
+					Name: "foo",
+				},
+			},
+			smc: &fakeSMC{
+				getSec: &secretmanagerpb.Secret{Name: "okay"},
+			},
+			dns: &fakeDNS{
+				regZone: &dns.ManagedZone{
+					Name:    dnsname.OrgZone("foo", "mlab-foo"),
+					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
+				},
+			},
+			keys: &fakeAPIKeys{
+				createKey: "this-is-a-fake-key",
+			},
+			updateTables: true,
+			bindingCount: 3,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			n := NewNamer("mlab-foo")
 			sam := NewServiceAccountsManager(tt.sam, n)
 			sm := NewSecretManager(tt.smc, n, sam)
-			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns)
-			if err := o.Setup(context.Background(), "foobar"); (err != nil) != tt.wantErr {
+			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns, tt.keys, tt.updateTables)
+			if _, err := o.Setup(context.Background(), "foobar"); (err != nil) != tt.wantErr {
 				t.Errorf("Org.Setup() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && tt.crm != nil && tt.crm.bindingCount != tt.bindingCount {
+				t.Errorf("Org.Setup() failed to count bindings = %d, want %d", tt.crm.bindingCount, tt.bindingCount)
+			}
+			if tt.wantErr {
+				return
+			}
+			foundTables := false
+			for _, binding := range tt.crm.policy.Bindings {
+				if binding.Condition != nil {
+					if strings.Contains(binding.Condition.Expression, "tables") {
+						foundTables = true
+					}
+				}
+			}
+			if foundTables != tt.updateTables {
+				t.Errorf("Org.Setup() failed to update tables correctly = %t, want %t", foundTables, tt.updateTables)
 			}
 		})
 	}

@@ -5,10 +5,12 @@ import (
 	"flag"
 	"log"
 
+	apikeys "cloud.google.com/go/apikeys/apiv2"
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/adminx/crmiface"
 	"github.com/m-lab/autojoin/internal/adminx/iamiface"
+	"github.com/m-lab/autojoin/internal/adminx/keysiface"
 	"github.com/m-lab/autojoin/internal/dnsname"
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
@@ -19,13 +21,15 @@ import (
 )
 
 var (
-	org     string
-	project string
+	org          string
+	project      string
+	updateTables bool
 )
 
 func init() {
 	flag.StringVar(&org, "org", "", "Organization name. Must match name assigned by M-Lab")
 	flag.StringVar(&project, "project", "", "GCP project to create organization resources")
+	flag.BoolVar(&updateTables, "update-tables", false, "Allow this org's service account to update table schemas")
 }
 
 func main() {
@@ -51,9 +55,13 @@ func main() {
 	ds, err := dns.NewService(ctx)
 	rtx.Must(err, "failed to create new dns service")
 	d := dnsx.NewManager(dnsiface.NewCloudDNSService(ds), project, dnsname.ProjectZone(project))
+	ac, err := apikeys.NewClient(ctx)
+	rtx.Must(err, "failed to create new apikey client")
+	k := adminx.NewAPIKeys(project, keysiface.NewKeys(ac), nn)
+	defer ac.Close()
 
-	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d)
-	err = o.Setup(ctx, org)
+	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d, k, updateTables)
+	key, err := o.Setup(ctx, org)
 	rtx.Must(err, "failed to set up new organization: "+org)
-	log.Println("okay")
+	log.Println("Setup okay - org:", org, "key:", key)
 }
