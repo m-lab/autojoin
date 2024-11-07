@@ -602,6 +602,18 @@ func TestServer_List(t *testing.T) {
 			wantLength: 0,
 		},
 		{
+			name:   "success-one-site-two-nodes",
+			params: "?format=sites&org=mlab",
+			lister: &fakeStatusTracker{
+				nodes: []string{
+					"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org",
+					"ndt-lga3356-abcdef12.mlab.autojoin.measurement-lab.org"},
+				ports: [][]string{{"9990"}, {"9990"}},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 1,
+		},
+		{
 			name:   "success-script-exporter",
 			params: "?format=script-exporter&service=ndt7_client_byos",
 			lister: &fakeStatusTracker{
