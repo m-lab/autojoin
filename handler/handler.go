@@ -354,7 +354,7 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 
 	org := req.URL.Query().Get("org")
 	format := req.URL.Query().Get("format")
-	sites := []string{}
+	sites := map[string]bool{}
 
 	// Create a prometheus StaticConfig for each known host.
 	for i := range hosts {
@@ -366,7 +366,7 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 			// Skip hosts that are not part of the given org.
 			continue
 		}
-		sites = append(sites, h.Site)
+		sites[h.Site] = true
 		if format == "script-exporter" {
 			// NOTE: do not assign any ports for script exporter.
 			ports[i] = []string{""}
@@ -409,7 +409,9 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		resp.Servers = hosts
 		results = resp
 	case "sites":
-		resp.Sites = sites
+		for k := range sites {
+			resp.Sites = append(resp.Sites, k)
+		}
 		results = resp
 	default:
 		// NOTE: default format is not valid for prometheus StaticConfig format.
