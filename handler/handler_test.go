@@ -592,6 +592,16 @@ func TestServer_List(t *testing.T) {
 			wantLength: 1,
 		},
 		{
+			name:   "success-sites",
+			params: "?format=sites&org=foo",
+			lister: &fakeStatusTracker{
+				nodes: []string{"ndt-lga3356-040e9f4b.mlab.autojoin.measurement-lab.org"},
+				ports: [][]string{{"9990"}},
+			},
+			wantCode:   http.StatusOK,
+			wantLength: 0,
+		},
+		{
 			name:   "success-script-exporter",
 			params: "?format=script-exporter&service=ndt7_client_byos",
 			lister: &fakeStatusTracker{
@@ -634,6 +644,10 @@ func TestServer_List(t *testing.T) {
 				resp := v0.ListResponse{}
 				err = json.Unmarshal(raw, &resp)
 				length = len(resp.Servers)
+			} else if strings.Contains(tt.params, "sites") {
+				resp := v0.ListResponse{}
+				err = json.Unmarshal(raw, &resp)
+				length = len(resp.Sites)
 			} else {
 				resp := v0.ListResponse{}
 				err = json.Unmarshal(raw, &resp)
