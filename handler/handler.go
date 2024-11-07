@@ -331,6 +331,11 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 // List handler is used by monitoring to generate a list of known, active
 // hostnames previously registered with the Autojoin API.
 func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
+	// Set CORS policy to allow third-party websites to use returned resources.
+	rw.Header().Set("Content-Type", "application/json")
+	rw.Header().Set("Access-Control-Allow-Origin", "*")
+	rw.Header().Set("Cache-Control", "no-store") // Prevent caching of result.
+
 	configs := []discovery.StaticConfig{}
 	resp := v0.ListResponse{}
 	hosts, ports, err := s.dnsTracker.List()
@@ -347,7 +352,9 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	org := req.URL.Query().Get("org")
 	format := req.URL.Query().Get("format")
+	sites := map[string]bool{}
 
 	// Create a prometheus StaticConfig for each known host.
 	for i := range hosts {
@@ -355,6 +362,11 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
 			continue
 		}
+		if org != "" && org != h.Org {
+			// Skip hosts that are not part of the given org.
+			continue
+		}
+		sites[h.Site] = true
 		if format == "script-exporter" {
 			// NOTE: do not assign any ports for script exporter.
 			ports[i] = []string{""}
@@ -395,6 +407,11 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		results = configs
 	case "servers":
 		resp.Servers = hosts
+		results = resp
+	case "sites":
+		for k := range sites {
+			resp.Sites = append(resp.Sites, k)
+		}
 		results = resp
 	default:
 		// NOTE: default format is not valid for prometheus StaticConfig format.
