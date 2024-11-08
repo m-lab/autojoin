@@ -1,0 +1,7 @@
+# A project may have up to 20 dispatch rules.
+# See also: https://cloud.google.com/appengine/docs/standard/go/reference/dispatch-yaml
+dispatch:
+# Route /autojoin/ requests to the autojoin service.
+- service: autojoin
+  url: "*/autojoin/*"
+# All other requests are routed to their default target.
