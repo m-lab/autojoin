@@ -559,7 +559,7 @@ func TestServer_List(t *testing.T) {
 				ports: [][]string{{"9990", "9991"}},
 			},
 			wantCode:   http.StatusOK,
-			wantLength: 2,
+			wantLength: 1,
 		},
 		{
 			name:   "success-prometheus",
@@ -663,8 +663,7 @@ func TestServer_List(t *testing.T) {
 			} else {
 				resp := v0.ListResponse{}
 				err = json.Unmarshal(raw, &resp)
-				configs = resp.StaticConfig
-				length = len(configs)
+				length = len(resp.Servers)
 			}
 			testingx.Must(t, err, "failed to unmarshal response")
 

@@ -403,7 +403,7 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		fallthrough
 	case "blackbox":
 		fallthrough
-	case "prometheus": // TODO(soltesz): retire this name.
+	case "prometheus":
 		results = configs
 	case "servers":
 		resp.Servers = hosts
@@ -414,8 +414,7 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		}
 		results = resp
 	default:
-		// NOTE: default format is not valid for prometheus StaticConfig format.
-		resp.StaticConfig = configs
+		resp.Servers = hosts
 		results = resp
 	}
 	// Generate as JSON; the list may be empty.
