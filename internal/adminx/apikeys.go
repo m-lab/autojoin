@@ -57,5 +57,8 @@ func (a *APIKeys) CreateKey(ctx context.Context, org string) (string, error) {
 		}
 		return key.KeyString, nil
 	}
+	if err != nil {
+		return "", err
+	}
 	return get.KeyString, nil
 }
