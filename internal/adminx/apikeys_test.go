@@ -65,6 +65,16 @@ func TestAPIKeys_CreateKey(t *testing.T) {
 			namer:   NewNamer("mlab-foo"),
 			wantErr: true,
 		},
+		{
+			name:          "error-other-error",
+			org:           "foo",
+			locateProject: "mlab-foo",
+			fakeKeys: &fakeKeys{
+				getKeyErr: fmt.Errorf("fake error"),
+			},
+			namer:   NewNamer("mlab-foo"),
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
