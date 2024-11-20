@@ -21,14 +21,16 @@ import (
 )
 
 var (
-	org          string
-	project      string
-	updateTables bool
+	org           string
+	project       string
+	locateProject string
+	updateTables  bool
 )
 
 func init() {
 	flag.StringVar(&org, "org", "", "Organization name. Must match name assigned by M-Lab")
 	flag.StringVar(&project, "project", "", "GCP project to create organization resources")
+	flag.StringVar(&locateProject, "locate-project", "", "GCP project for Locate API")
 	flag.BoolVar(&updateTables, "update-tables", false, "Allow this org's service account to update table schemas")
 }
 
@@ -57,7 +59,11 @@ func main() {
 	d := dnsx.NewManager(dnsiface.NewCloudDNSService(ds), project, dnsname.ProjectZone(project))
 	ac, err := apikeys.NewClient(ctx)
 	rtx.Must(err, "failed to create new apikey client")
-	k := adminx.NewAPIKeys(project, keysiface.NewKeys(ac), nn)
+	if project == "mlab-autojoin" && locateProject == "" {
+		locateProject = "mlab-ns"
+	}
+	// Local project names are taken from the namer.
+	k := adminx.NewAPIKeys(locateProject, keysiface.NewKeys(ac), nn)
 	defer ac.Close()
 
 	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d, k, updateTables)
