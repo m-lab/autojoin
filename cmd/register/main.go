@@ -149,14 +149,14 @@ func register() {
 	err = os.WriteFile(path.Join(*outputPath, annotationFilename), annotationJSON, 0644)
 	rtx.Must(err, "Failed to write annotation file")
 
-	// Service account credentials.
-	if r.Registration.Credentials != nil {
-		// TODO(soltesz): abort on nil after deployment.
-		key, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
-		rtx.Must(err, "Failed to decode service account key")
-		err = os.WriteFile(path.Join(*outputPath, serviceAccountFilename), key, 0644)
-		rtx.Must(err, "Failed to write annotation file")
+	if r.Registration.Credentials == nil {
+		log.Fatalf("Registration credentials are nil:\n%s", body)
 	}
+	// Service account credentials.
+	key, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
+	rtx.Must(err, "Failed to decode service account key")
+	err = os.WriteFile(path.Join(*outputPath, serviceAccountFilename), key, 0644)
+	rtx.Must(err, "Failed to write annotation file")
 
 	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
 	registerSuccess.Store(true)
