@@ -29,14 +29,14 @@ steps:
 # Routes requests to autojoin.measurementlab.net to the autojoin service.
 - name: gcr.io/$PROJECT_ID/gcloud-jsonnet-cbif:1.1
   entrypoint: bash
-  env:
-  - PROJECT_IN=mlab-autojoin
   args:
   - -c
   - |-
-    # Wait for the first non-completed operation.
-    gcloud --project $PROJECT_ID app operations wait \
-      $$( gcloud  --project mlab-autojoin app operations list \
-           | grep -vE 'STATUS|COMPLETED' | awk '{print $1}' | head -1 ) 2> /dev/null || :
-    # Deploy dispatch after operations are complete.
-    gcloud --project $PROJECT_ID app deploy dispatch.yaml
+    if [[ "$PROJECT_ID" == "mlab-autojoin" ]]; then
+      # Wait for the first non-completed operation.
+      gcloud --project $PROJECT_ID app operations wait \
+        $$( gcloud  --project $PROJECT_ID app operations list \
+            | grep -vE 'STATUS|COMPLETED' | awk '{print $1}' | head -1 ) 2> /dev/null || :
+      # Deploy dispatch after operations are complete.
+      gcloud --project $PROJECT_ID app deploy dispatch.yaml ;
+    fi
