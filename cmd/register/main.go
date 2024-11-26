@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"strconv"
 	"sync/atomic"
 	"time"
 
@@ -43,7 +44,8 @@ var (
 	intervalMin = flag.Duration("interval.min", 55*time.Minute, "Minimum registration interval")
 	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
 	outputPath  = flag.String("output", "", "Output folder")
-	siteProb    = flag.Float64("probability", 1.0, "Default probability of returning this site for a Locate result")
+	siteProb    = flagx.StringFile{}
+	defaultProb = 1.0
 	ports       = flagx.StringArray{}
 
 	hcAddr          = flag.String("healthcheck-addr", "localhost:8001", "Address to serve the /ready endpoint on")
@@ -55,6 +57,7 @@ func init() {
 	flag.Var(&iata, "iata", "IATA code to register with the autojoin service")
 	flag.Var(&ipv4, "ipv4", "IPv4 address to register with the autojoin service")
 	flag.Var(&ipv6, "ipv6", "IPv6 address to register with the autojoin service")
+	flag.Var(&siteProb, "probability", "Default probability of returning this site for a Locate result")
 }
 
 func Ready(rw http.ResponseWriter, req *http.Request) {
@@ -68,12 +71,26 @@ func Ready(rw http.ResponseWriter, req *http.Request) {
 func main() {
 	flag.Parse()
 
+	var probability float64
+	var err error
+
+	if siteProb.Value == "" {
+		probability = defaultProb
+	} else {
+		probability, err = strconv.ParseFloat(siteProb.Value, 64)
+		if err != nil {
+			panic("unable to parse -probability flag value")
+		}
+	}
+
 	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || iata.Value == "" {
 		panic("-key, -service, -organization, and -iata are required.")
 	}
-	if *siteProb <= 0.0 || *siteProb > 1.0 {
+	if probability <= 0.0 || probability > 1.0 {
 		panic("-probability must be in the range (0, 1]")
 	}
+
+	siteProb.Value = fmt.Sprintf("%f", probability)
 
 	// Set up health server.
 	mux := http.NewServeMux()
@@ -110,7 +127,7 @@ func register() {
 	q.Add("iata", iata.Value)
 	q.Add("ipv4", ipv4.Value)
 	q.Add("ipv6", ipv6.Value)
-	q.Add("probability", fmt.Sprintf("%f", *siteProb))
+	q.Add("probability", siteProb.Value)
 	for _, port := range ports {
 		q.Add("ports", port)
 	}
