@@ -68,7 +68,7 @@ func Ready(rw http.ResponseWriter, req *http.Request) {
 func main() {
 	flag.Parse()
 
-	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || *iata == "" {
+	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || iata.Value == "" {
 		panic("-key, -service, -organization, and -iata are required.")
 	}
 	if *siteProb <= 0.0 || *siteProb > 1.0 {
@@ -107,9 +107,9 @@ func register() {
 	q.Add("api_key", *apiKey)
 	q.Add("service", *service)
 	q.Add("organization", *org)
-	q.Add("iata", *iata)
-	q.Add("ipv4", *ipv4)
-	q.Add("ipv6", *ipv6)
+	q.Add("iata", iata.Value)
+	q.Add("ipv4", ipv4.Value)
+	q.Add("ipv6", ipv6.Value)
 	q.Add("probability", fmt.Sprintf("%f", *siteProb))
 	for _, port := range ports {
 		q.Add("ports", port)
