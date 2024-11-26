@@ -36,9 +36,9 @@ var (
 	apiKey      = flag.String("key", "", "API key for the autojoin service")
 	service     = flag.String("service", "ndt", "Service name to register with the autojoin service")
 	org         = flag.String("organization", "", "Organization to register with the autojoin service")
-	iata        = flag.String("iata", "", "IATA code to register with the autojoin service")
-	ipv4        = flag.String("ipv4", "", "IPv4 address to register with the autojoin service")
-	ipv6        = flag.String("ipv6", "", "IPv6 address to register with the autojoin service")
+	iata        = flagx.StringFile{}
+	ipv4        = flagx.StringFile{}
+	ipv6        = flagx.StringFile{}
 	interval    = flag.Duration("interval.expected", 1*time.Hour, "Expected registration interval")
 	intervalMin = flag.Duration("interval.min", 55*time.Minute, "Minimum registration interval")
 	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
@@ -52,6 +52,9 @@ var (
 
 func init() {
 	flag.Var(&ports, "ports", "Ports to monitor for this service")
+	flag.Var(&iata, "iata", "IATA code to register with the autojoin service")
+	flag.Var(&ipv4, "ipv4", "IPv4 address to register with the autojoin service")
+	flag.Var(&ipv6, "ipv6", "IPv6 address to register with the autojoin service")
 }
 
 func Ready(rw http.ResponseWriter, req *http.Request) {
@@ -65,7 +68,7 @@ func Ready(rw http.ResponseWriter, req *http.Request) {
 func main() {
 	flag.Parse()
 
-	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || *iata == "" {
+	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || iata.Value == "" {
 		panic("-key, -service, -organization, and -iata are required.")
 	}
 	if *siteProb <= 0.0 || *siteProb > 1.0 {
@@ -104,9 +107,9 @@ func register() {
 	q.Add("api_key", *apiKey)
 	q.Add("service", *service)
 	q.Add("organization", *org)
-	q.Add("iata", *iata)
-	q.Add("ipv4", *ipv4)
-	q.Add("ipv6", *ipv6)
+	q.Add("iata", iata.Value)
+	q.Add("ipv4", ipv4.Value)
+	q.Add("ipv6", ipv6.Value)
 	q.Add("probability", fmt.Sprintf("%f", *siteProb))
 	for _, port := range ports {
 		q.Add("ports", port)

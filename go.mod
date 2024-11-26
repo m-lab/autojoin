@@ -10,7 +10,7 @@ require (
 	github.com/googleapis/gax-go v1.0.3
 	github.com/googleapis/gax-go/v2 v2.13.0
 	github.com/m-lab/gcp-service-discovery v1.5.1
-	github.com/m-lab/go v0.1.71
+	github.com/m-lab/go v0.1.75
 	github.com/m-lab/locate v0.14.49
 	github.com/m-lab/uuid-annotator v0.5.6
 	github.com/oschwald/geoip2-golang v1.7.0

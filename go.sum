@@ -284,6 +284,8 @@ github.com/m-lab/gcp-service-discovery v1.5.1/go.mod h1:ibZ81sW6Z8M/9pfIOc+iiJCU
 github.com/m-lab/go v0.1.45/go.mod h1:05mdACIqCaSuf57iYC6mDhomYdyzSgkWeR5CgZIXU6Y=
 github.com/m-lab/go v0.1.71 h1:VTfoAzsWRstsTBDvt4Ss9lJ6J6QcWvOmI2gr3OboJ1o=
 github.com/m-lab/go v0.1.71/go.mod h1:BirARfHWjjXHaCGNyWCm/CKW1OarjuEj8Yn6Z2rc0M4=
+github.com/m-lab/go v0.1.75 h1:t4kvig26aUBznA0b3e997Jn0BjELAOKpO1xILWp2VJs=
+github.com/m-lab/go v0.1.75/go.mod h1:BirARfHWjjXHaCGNyWCm/CKW1OarjuEj8Yn6Z2rc0M4=
 github.com/m-lab/locate v0.14.49 h1:M7SNJAU/fbsdWHqCOAHpWajD7mgnjN8shm8usAZMDqU=
 github.com/m-lab/locate v0.14.49/go.mod h1:Wahmsdym1dE3/+6Z1yUriDhCnV5c+ug8jWV1GNAIYMg=
 github.com/m-lab/tcp-info v1.5.3 h1:4IspTPcNc8D8LNRvuFnID8gDiz+hxPAtYvpKZaiGGe8=
