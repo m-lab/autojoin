@@ -63,6 +63,8 @@ func TestCreateRegisterResponse(t *testing.T) {
 					ASNumber: 12345,
 				},
 				Probability: 1.0,
+				Type:        "physical",
+				Uplink:      "10g",
 			},
 			want: v0.RegisterResponse{
 				Registration: &v0.Registration{
@@ -101,8 +103,8 @@ func TestCreateRegisterResponse(t *testing.T) {
 						Project:     "mlab-sandbox",
 						Probability: 1,
 						Site:        "lga12345",
-						Type:        "unknown",
-						Uplink:      "unknown",
+						Type:        "physical",
+						Uplink:      "10g",
 					},
 				},
 			},

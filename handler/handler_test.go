@@ -341,7 +341,7 @@ func TestServer_Register(t *testing.T) {
 	}{
 		{
 			name:    "success",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -355,7 +355,7 @@ func TestServer_Register(t *testing.T) {
 		},
 		{
 			name:    "success-probability-invalid-ports-invalid",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid&ports=invalid",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid&ports=invalid&type=virtual&uplink=10g",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -383,6 +383,16 @@ func TestServer_Register(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
+			name:     "error-bad-type",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=dell&uplink=50g",
+			wantCode: http.StatusBadRequest,
+		},
+		{
+			name:     "error-bad-uplink",
+			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=virtual&uplink=10",
+			wantCode: http.StatusBadRequest,
+		},
+		{
 			name:     "error-bad-ip",
 			params:   "?service=foo&organization=bar&ipv4=-BAD-IP-",
 			wantCode: http.StatusBadRequest,
@@ -395,19 +405,19 @@ func TestServer_Register(t *testing.T) {
 		{
 			name:     "error-bad-iata-find",
 			Iata:     &fakeIataFinder{findErr: errors.New("find err")},
-			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=123",
+			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=123&type=physical&uplink=20g",
 			wantCode: http.StatusInternalServerError,
 		},
 		{
 			name:     "error-bad-maxmind-city",
 			Iata:     &fakeIataFinder{findRow: iata.Row{}},
 			Maxmind:  &fakeMaxmind{err: errors.New("fake maxmind error")},
-			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=abc",
+			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=abc&type=virtual&uplink=1000g",
 			wantCode: http.StatusInternalServerError,
 		},
 		{
 			name:    "error-loading-key",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -419,7 +429,7 @@ func TestServer_Register(t *testing.T) {
 		},
 		{
 			name:    "error-registration",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&type=virtual&uplink=1g",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -431,7 +441,7 @@ func TestServer_Register(t *testing.T) {
 		},
 		{
 			name:    "error-tracker-update-error",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1",
+			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&type=physical&uplink=20g",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,

@@ -28,6 +28,8 @@ type Params struct {
 	Metro       iata.Row
 	Network     *annotator.Network
 	Probability float64
+	Type        string
+	Uplink      string
 }
 
 // CreateRegisterResponse generates a RegisterResponse from the given
@@ -98,8 +100,8 @@ func CreateRegisterResponse(p *Params) v0.RegisterResponse {
 				Project:       p.Project,
 				Probability:   p.Probability,
 				Site:          site,
-				Type:          "unknown", // should be overridden by node.
-				Uplink:        "unknown", // should be overridden by node.
+				Type:          p.Type,
+				Uplink:        p.Uplink,
 			},
 		},
 	}

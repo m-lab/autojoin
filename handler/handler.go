@@ -182,6 +182,28 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		writeResponse(rw, resp)
 		return
 	}
+	param.Type = req.URL.Query().Get("type")
+	if !isValidType(param.Type) {
+		resp.Error = &v2.Error{
+			Type:   "?type=<type>",
+			Title:  "invalid machine type from request",
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+	param.Uplink = req.URL.Query().Get("uplink")
+	if !isValidUplink(param.Uplink) {
+		resp.Error = &v2.Error{
+			Type:   "?uplink=<uplink>",
+			Title:  "invalid uplink speed from request",
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
 	iata := getClientIata(req)
 	if iata == "" {
 		resp.Error = &v2.Error{
@@ -449,6 +471,22 @@ func isValidName(s string) bool {
 		return false
 	}
 	return validName.MatchString(s)
+}
+
+func isValidType(s string) bool {
+	switch s {
+	case "physical", "virtual":
+		return true
+	default:
+		return false
+	}
+}
+
+func isValidUplink(s string) bool {
+	// Minimally make sure the uplink speed specification looks like some
+	// numbers followed by "g".
+	matched, _ := regexp.MatchString("[0-9]+g", s)
+	return matched
 }
 
 func (s *Server) getCountry(req *http.Request) (string, error) {
