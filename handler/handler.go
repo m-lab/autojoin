@@ -184,9 +184,8 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	}
 	param.Type = req.URL.Query().Get("type")
 	if !isValidType(param.Type) {
-		fmt.Printf("bad machine type")
 		resp.Error = &v2.Error{
-			Type:   "?machine-type=<machine-type>",
+			Type:   "?type=<type>",
 			Title:  "invalid machine type from request",
 			Status: http.StatusBadRequest,
 		}
