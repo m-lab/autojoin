@@ -40,6 +40,8 @@ var (
 	iata        = flagx.StringFile{}
 	ipv4        = flagx.StringFile{}
 	ipv6        = flagx.StringFile{}
+	machineType = flag.String("type", "", "The type of machine: physical or virtual")
+	uplink      = flag.String("uplink", "", "The speed of the uplink e.g., 1g, 10g, etc.")
 	interval    = flag.Duration("interval.expected", 1*time.Hour, "Expected registration interval")
 	intervalMin = flag.Duration("interval.min", 55*time.Minute, "Minimum registration interval")
 	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
@@ -127,6 +129,8 @@ func register() {
 	q.Add("iata", iata.Value)
 	q.Add("ipv4", ipv4.Value)
 	q.Add("ipv6", ipv6.Value)
+	q.Add("type", *machineType)
+	q.Add("uplink", *uplink)
 	q.Add("probability", siteProb.Value)
 	for _, port := range ports {
 		q.Add("ports", port)
