@@ -9,6 +9,7 @@ import (
 	"github.com/m-lab/autojoin/internal/dnsname"
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
+	"github.com/m-lab/autojoin/internal/metrics"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/locate/memorystore"
 )
@@ -122,6 +123,7 @@ func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, [][]string, error
 	// Iterate over values and check if they are expired.
 	for k, v := range values {
 		lastUpdate := time.Unix(v.DNS.LastUpdate, 0)
+		metrics.DNSExpiration.WithLabelValues(k).Set(float64(lastUpdate.Add(gc.ttl).Unix()))
 		if time.Since(lastUpdate) > gc.ttl {
 			log.Printf("%s expired on %s, deleting from Cloud DNS and memorystore", k, lastUpdate.Add(gc.ttl))
 

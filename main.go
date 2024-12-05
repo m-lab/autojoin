@@ -15,6 +15,7 @@ import (
 	"github.com/m-lab/autojoin/internal/adminx/iamiface"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/autojoin/internal/maxmind"
+	"github.com/m-lab/autojoin/internal/metrics"
 	"github.com/m-lab/autojoin/internal/tracker"
 	"github.com/m-lab/go/content"
 	"github.com/m-lab/go/flagx"
@@ -25,7 +26,6 @@ import (
 	"github.com/m-lab/locate/memorystore"
 	"github.com/m-lab/uuid-annotator/asnannotator"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/iam/v1"
@@ -40,15 +40,6 @@ var (
 	routeviewSrc = flagx.URL{}
 	gcTTL        time.Duration
 	gcInterval   time.Duration
-
-	// RequestHandlerDuration is a histogram that tracks the latency of each request handler.
-	RequestHandlerDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name: "autojoin_request_handler_duration",
-			Help: "A histogram of latencies for each request handler.",
-		},
-		[]string{"path", "code"},
-	)
 )
 
 func init() {
@@ -146,21 +137,21 @@ func main() {
 	mux := http.NewServeMux()
 	// USER APIs
 	mux.HandleFunc("/autojoin/v0/lookup", promhttp.InstrumentHandlerDuration(
-		RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/lookup"}),
+		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/lookup"}),
 		http.HandlerFunc(s.Lookup)))
 
 	// AUTOJOIN APIs
 	// Nodes register on start up.
 	mux.HandleFunc("/autojoin/v0/node/register", promhttp.InstrumentHandlerDuration(
-		RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/register"}),
+		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/register"}),
 		http.HandlerFunc(s.Register)))
 
 	mux.HandleFunc("/autojoin/v0/node/delete", promhttp.InstrumentHandlerDuration(
-		RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/delete"}),
+		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/delete"}),
 		http.HandlerFunc(s.Delete)))
 
 	mux.HandleFunc("/autojoin/v0/node/list", promhttp.InstrumentHandlerDuration(
-		RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/list"}),
+		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/list"}),
 		http.HandlerFunc(s.List)))
 
 	// Liveness and Readiness checks to support deployments.
