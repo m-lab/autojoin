@@ -9,6 +9,8 @@ import (
 	"cloud.google.com/go/datastore"
 )
 
+const autojoinNamespace = "autojoin"
+
 type DatastoreClient interface {
 	Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error)
 	Get(ctx context.Context, key *datastore.Key, dst interface{}) error
@@ -29,21 +31,24 @@ type APIKey struct {
 
 // DatastoreOrgManager maintains state for managing organizations and API keys in Datastore
 type DatastoreOrgManager struct {
-	client  DatastoreClient
-	project string
+	client    DatastoreClient
+	project   string
+	namespace string
 }
 
 // Add constructor
 func NewDatastoreManager(client DatastoreClient, project string) *DatastoreOrgManager {
 	return &DatastoreOrgManager{
-		client:  client,
-		project: project,
+		client:    client,
+		project:   project,
+		namespace: autojoinNamespace,
 	}
 }
 
 // Add CreateOrganization method
 func (d *DatastoreOrgManager) CreateOrganization(ctx context.Context, name, email string) error {
 	key := datastore.NameKey("Organization", name, nil)
+	key.Namespace = d.namespace
 
 	org := &Organization{
 		Name:      name,
@@ -58,6 +63,7 @@ func (d *DatastoreOrgManager) CreateOrganization(ctx context.Context, name, emai
 // CreateAPIKey creates a new API key as a child entity of the organization
 func (d *DatastoreOrgManager) CreateAPIKey(ctx context.Context, org string) (string, error) {
 	parentKey := datastore.NameKey("Organization", org, nil)
+	parentKey.Namespace = d.namespace
 
 	// Generate random API key
 	keyString, err := GenerateAPIKey()
@@ -67,6 +73,7 @@ func (d *DatastoreOrgManager) CreateAPIKey(ctx context.Context, org string) (str
 
 	// Use the generated string as the key name
 	key := datastore.NameKey("APIKey", keyString, parentKey)
+	key.Namespace = d.namespace
 
 	apiKey := &APIKey{
 		CreatedAt: time.Now().UTC(),
@@ -83,6 +90,8 @@ func (d *DatastoreOrgManager) CreateAPIKey(ctx context.Context, org string) (str
 // GetAPIKeys retrieves all API keys for an organization
 func (d *DatastoreOrgManager) GetAPIKeys(ctx context.Context, org string) ([]string, error) {
 	parentKey := datastore.NameKey("Organization", org, nil)
+	parentKey.Namespace = d.namespace
+
 	q := datastore.NewQuery("APIKey").Ancestor(parentKey).KeysOnly()
 
 	keys, err := d.client.GetAll(ctx, q, nil)
