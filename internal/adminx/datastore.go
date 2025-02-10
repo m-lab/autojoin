@@ -20,7 +20,7 @@ type DatastoreClient interface {
 // Organization represents a Datastore entity for storing organization metadata
 type Organization struct {
 	Name      string    `datastore:"name"`
-	Email     string    `datastore:"contact"`
+	Email     string    `datastore:"email"`
 	CreatedAt time.Time `datastore:"created_at"`
 }
 
