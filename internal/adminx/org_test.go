@@ -20,6 +20,32 @@ func init() {
 	log.SetOutput(io.Discard)
 }
 
+type fakeOrgManager struct {
+	createOrgErr error
+	createKeyErr error
+	getKeysErr   error
+	keyString    string
+}
+
+func (f *fakeOrgManager) CreateOrganization(ctx context.Context, name, email string) error {
+	return f.createOrgErr
+}
+
+func (f *fakeOrgManager) CreateAPIKey(ctx context.Context, org string) (string, error) {
+	if f.createKeyErr != nil {
+		return "", f.createKeyErr
+	}
+	if f.keyString == "" {
+		// Return a dummy key if none specified
+		return "test-api-key", nil
+	}
+	return f.keyString, nil
+}
+
+func (f *fakeOrgManager) GetAPIKeys(ctx context.Context, org string) ([]string, error) {
+	return nil, f.getKeysErr
+}
+
 type fakeCRM struct {
 	getPolicy    *cloudresourcemanager.Policy
 	getPolicyErr error
@@ -70,6 +96,7 @@ func TestOrg_Setup(t *testing.T) {
 		sam          IAMService
 		smc          SecretManagerClient
 		dns          DNS
+		orgm         *fakeOrgManager
 		org          string
 		keys         Keys
 		updateTables bool
@@ -105,7 +132,15 @@ func TestOrg_Setup(t *testing.T) {
 			keys: &fakeAPIKeys{
 				createKey: "this-is-a-fake-key",
 			},
+			orgm:         &fakeOrgManager{},
 			bindingCount: 3,
+		},
+		{
+			name: "error-datastore",
+			orgm: &fakeOrgManager{
+				createOrgErr: fmt.Errorf("datastore error"),
+			},
+			wantErr: true,
 		},
 		{
 			name: "error-register-zone",
@@ -130,6 +165,7 @@ func TestOrg_Setup(t *testing.T) {
 			dns: &fakeDNS{
 				regZoneErr: fmt.Errorf("fake zone registration error"),
 			},
+			orgm:    &fakeOrgManager{},
 			wantErr: true,
 		},
 		{
@@ -159,6 +195,7 @@ func TestOrg_Setup(t *testing.T) {
 				},
 				regSplitErr: fmt.Errorf("fake split register error"),
 			},
+			orgm:    &fakeOrgManager{},
 			wantErr: true,
 		},
 		{
@@ -198,6 +235,7 @@ func TestOrg_Setup(t *testing.T) {
 			keys: &fakeAPIKeys{
 				createKey: "this-is-a-fake-key",
 			},
+			orgm:         &fakeOrgManager{},
 			bindingCount: 3,
 		},
 		{
@@ -205,6 +243,7 @@ func TestOrg_Setup(t *testing.T) {
 			sam: &fakeIAMService{
 				getAcctErr: fmt.Errorf("fake error messages"),
 			},
+			orgm:    &fakeOrgManager{},
 			wantErr: true,
 		},
 		{
@@ -227,6 +266,7 @@ func TestOrg_Setup(t *testing.T) {
 			smc: &fakeSMC{
 				getSecErr: fmt.Errorf("fake create secret error"),
 			},
+			orgm:    &fakeOrgManager{},
 			wantErr: true,
 		},
 		{
@@ -239,6 +279,7 @@ func TestOrg_Setup(t *testing.T) {
 					Name: "foo",
 				},
 			},
+			orgm:    &fakeOrgManager{},
 			wantErr: true,
 		},
 		{
@@ -259,6 +300,7 @@ func TestOrg_Setup(t *testing.T) {
 					Name: "foo",
 				},
 			},
+			orgm:    &fakeOrgManager{},
 			wantErr: true,
 		},
 		{
@@ -291,6 +333,7 @@ func TestOrg_Setup(t *testing.T) {
 				createKey: "this-is-a-fake-key",
 			},
 			updateTables: true,
+			orgm:         &fakeOrgManager{},
 			bindingCount: 3,
 		},
 	}
@@ -299,8 +342,8 @@ func TestOrg_Setup(t *testing.T) {
 			n := NewNamer("mlab-foo")
 			sam := NewServiceAccountsManager(tt.sam, n)
 			sm := NewSecretManager(tt.smc, n, sam)
-			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns, tt.keys, tt.updateTables)
-			if _, err := o.Setup(context.Background(), "foobar"); (err != nil) != tt.wantErr {
+			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns, tt.keys, tt.orgm, tt.updateTables)
+			if err := o.Setup(context.Background(), "foobar", "testemail"); (err != nil) != tt.wantErr {
 				t.Errorf("Org.Setup() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if !tt.wantErr && tt.crm != nil && tt.crm.bindingCount != tt.bindingCount {
@@ -381,6 +424,44 @@ func TestBindingIsEqual(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := BindingIsEqual(tt.a, tt.b); got != tt.want {
 				t.Errorf("BindingIsEqual() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestOrg_CreateAPIKey(t *testing.T) {
+	tests := []struct {
+		name    string
+		org     string
+		dsm     *fakeOrgManager
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "success",
+			org:  "test-org",
+			dsm:  &fakeOrgManager{keyString: "test-api-key"},
+			want: "test-api-key",
+		},
+		{
+			name: "error",
+			org:  "test-org",
+			dsm: &fakeOrgManager{
+				createKeyErr: fmt.Errorf("fake create key error"),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			o := NewOrg("test-project", nil, nil, nil, nil, nil, tt.dsm, false)
+			got, err := o.CreateAPIKey(context.Background(), tt.org)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Org.CreateAPIKey() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("Org.CreateAPIKey() = %v, want %v", got, tt.want)
 			}
 		})
 	}

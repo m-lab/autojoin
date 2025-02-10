@@ -2,90 +2,66 @@ package adminx
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
-	"cloud.google.com/go/apikeys/apiv2/apikeyspb"
-	"github.com/googleapis/gax-go"
+	"cloud.google.com/go/datastore"
 )
 
-type fakeKeys struct {
-	getKey       *apikeyspb.GetKeyStringResponse
-	getKeyErr    error
-	createKey    *apikeyspb.Key
-	createKeyErr error
+var errTest = errors.New("test error")
+
+type fakeDatastore struct {
+	putErr error
+	getErr error
+	keys   []*datastore.Key
+	getAll []string
 }
 
-func (f *fakeKeys) GetKeyString(ctx context.Context, req *apikeyspb.GetKeyStringRequest, opts ...gax.CallOption) (*apikeyspb.GetKeyStringResponse, error) {
-	return f.getKey, f.getKeyErr
+func (f *fakeDatastore) Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error) {
+	return key, f.putErr
 }
-func (f *fakeKeys) CreateKey(ctx context.Context, req *apikeyspb.CreateKeyRequest, opts ...gax.CallOption) (*apikeyspb.Key, error) {
-	return f.createKey, f.createKeyErr
+
+func (f *fakeDatastore) Get(ctx context.Context, key *datastore.Key, dst interface{}) error {
+	return f.getErr
+}
+
+func (f *fakeDatastore) GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error) {
+	return f.keys, f.getErr
 }
 
 func TestAPIKeys_CreateKey(t *testing.T) {
 	tests := []struct {
-		name          string
-		org           string
-		locateProject string
-		fakeKeys      KeysClient
-		namer         *Namer
-		want          string
-		wantErr       bool
+		name    string
+		org     string
+		ds      *fakeDatastore
+		want    string
+		wantErr bool
 	}{
 		{
-			name:          "success-get",
-			org:           "foo",
-			locateProject: "mlab-foo",
-			fakeKeys: &fakeKeys{
-				getKey: &apikeyspb.GetKeyStringResponse{KeyString: "12345"},
-			},
-			namer: NewNamer("mlab-foo"),
-			want:  "12345",
+			name: "success",
+			org:  "foo",
+			ds:   &fakeDatastore{},
+			want: "", // The actual key will be random
 		},
 		{
-			name:          "success-create",
-			org:           "foo",
-			locateProject: "mlab-foo",
-			fakeKeys: &fakeKeys{
-				getKeyErr: createNotFoundErr(),
-				createKey: &apikeyspb.Key{KeyString: "12345"},
-			},
-			namer: NewNamer("mlab-foo"),
-			want:  "12345",
-		},
-		{
-			name:          "error-create",
-			org:           "foo",
-			locateProject: "mlab-foo",
-			fakeKeys: &fakeKeys{
-				getKeyErr:    createNotFoundErr(),
-				createKeyErr: fmt.Errorf("fake key create error"),
-			},
-			namer:   NewNamer("mlab-foo"),
-			wantErr: true,
-		},
-		{
-			name:          "error-other-error",
-			org:           "foo",
-			locateProject: "mlab-foo",
-			fakeKeys: &fakeKeys{
-				getKeyErr: fmt.Errorf("fake error"),
-			},
-			namer:   NewNamer("mlab-foo"),
+			name:    "error",
+			org:     "foo",
+			ds:      &fakeDatastore{putErr: errTest},
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			a := NewAPIKeys(tt.locateProject, tt.fakeKeys, tt.namer)
+			dm := NewDatastoreManager(tt.ds, "test-project")
+			a := NewAPIKeys(dm)
 			got, err := a.CreateKey(context.Background(), tt.org)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("APIKeys.CreateKey() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if got != tt.want {
-				t.Errorf("APIKeys.CreateKey() = %v, want %v", got, tt.want)
+			// Verify key generation produces a non-empty string
+			if !tt.wantErr && got == "" {
+				t.Error("APIKeys.CreateKey() returned empty string, wanted non-empty")
 			}
 		})
 	}
