@@ -21,6 +21,7 @@ import (
 
 var (
 	org           string
+	orgEmail      string
 	project       string
 	locateProject string
 	updateTables  bool
@@ -31,6 +32,7 @@ func init() {
 	flag.StringVar(&project, "project", "", "GCP project to create organization resources")
 	flag.StringVar(&locateProject, "locate-project", "", "GCP project for Locate API")
 	flag.BoolVar(&updateTables, "update-tables", false, "Allow this org's service account to update table schemas")
+	flag.StringVar(&orgEmail, "org-email", "", "Organization contact email")
 }
 
 func main() {
@@ -71,7 +73,7 @@ func main() {
 	}
 
 	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d, k, ds, updateTables)
-	err = o.Setup(ctx, org, "testemail")
+	err = o.Setup(ctx, org, orgEmail)
 	rtx.Must(err, "failed to set up new organization: "+org)
 	key, err := o.CreateAPIKey(ctx, org)
 	log.Println("Setup okay - org:", org, "key:", key)
