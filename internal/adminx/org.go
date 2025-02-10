@@ -41,6 +41,13 @@ type CRM interface {
 	SetIamPolicy(ctx context.Context, req *cloudresourcemanager.SetIamPolicyRequest) error
 }
 
+// OrganizationManager defines the interface for managing organizations and their API keys
+type OrganizationManager interface {
+	CreateOrganization(ctx context.Context, name, email string) error
+	CreateAPIKey(ctx context.Context, org string) (string, error)
+	GetAPIKeys(ctx context.Context, org string) ([]string, error)
+}
+
 // Keys is the interface used to manage organization API keys.
 type Keys interface {
 	CreateKey(ctx context.Context, org string) (string, error)
@@ -52,18 +59,21 @@ type Org struct {
 	crm          CRM
 	sam          *ServiceAccountsManager
 	sm           *SecretManager
+	orgm         OrganizationManager
 	dns          DNS
 	keys         Keys
 	updateTables bool
 }
 
 // NewOrg creates a new Org instance for setting up a new organization.
-func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS, k Keys, updateTables bool) *Org {
+func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS, k Keys,
+	orgm OrganizationManager, updateTables bool) *Org {
 	return &Org{
 		Project:      project,
 		crm:          crm,
 		sam:          sam,
 		sm:           sm,
+		orgm:         orgm,
 		dns:          dns,
 		keys:         k,
 		updateTables: updateTables,
@@ -71,27 +81,32 @@ func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretMana
 }
 
 // Setup should be run once on org creation to create all Google Cloud resources needed by the Autojoin API.
-func (o *Org) Setup(ctx context.Context, org string) (string, error) {
+func (o *Org) Setup(ctx context.Context, org string, email string) error {
+	// Create organization in Datastore
+	err := o.orgm.CreateOrganization(ctx, org, email)
+	if err != nil {
+		return err
+	}
 	// Create service account with no keys.
 	sa, err := o.sam.CreateServiceAccount(ctx, org)
 	if err != nil {
-		return "", err
+		return err
 	}
 	err = o.ApplyPolicy(ctx, org, sa, o.updateTables)
 	if err != nil {
-		return "", err
+		return err
 	}
 	// Create secret with no versions.
 	err = o.sm.CreateSecret(ctx, org)
 	if err != nil {
-		return "", err
+		return err
 	}
 	// Create DNS zone and zone split.
 	err = o.RegisterDNS(ctx, org)
 	if err != nil {
-		return "", err
+		return err
 	}
-	return o.keys.CreateKey(ctx, org)
+	return nil
 }
 
 // RegisterDNS creates the organization zone and the zone split within the project zone.
@@ -235,4 +250,9 @@ func BindingIsEqual(a *cloudresourcemanager.Binding, b *cloudresourcemanager.Bin
 	}
 	// Roles should match.
 	return a.Role == b.Role
+}
+
+// CreateAPIKey creates a new API key for this organization.
+func (o *Org) CreateAPIKey(ctx context.Context, org string) (string, error) {
+	return o.keys.CreateKey(ctx, org)
 }
