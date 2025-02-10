@@ -454,7 +454,8 @@ func TestOrg_CreateAPIKey(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			o := NewOrg("test-project", nil, nil, nil, nil, nil, tt.dsm, false)
+			k := &fakeAPIKeys{createKey: tt.want, createKeyErr: tt.dsm.createKeyErr}
+			o := NewOrg("test-project", nil, nil, nil, nil, k, tt.dsm, false)
 			got, err := o.CreateAPIKey(context.Background(), tt.org)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Org.CreateAPIKey() error = %v, wantErr %v", err, tt.wantErr)
