@@ -24,11 +24,11 @@ type APIKeyValidator interface {
 // org info to context.
 func WithAPIKeyValidation(validator APIKeyValidator, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		apiKey := r.URL.Query().Get("key")
+		apiKey := r.URL.Query().Get("api_key")
 		if apiKey == "" {
 			resp := v0.RegisterResponse{
 				Error: &v2.Error{
-					Type:   "?key=<key>",
+					Type:   "?api_key=<key>",
 					Title:  "API key is required",
 					Status: http.StatusUnauthorized,
 				},
