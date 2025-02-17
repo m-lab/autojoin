@@ -60,7 +60,7 @@ func TestWithAPIKeyValidation(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			}
 
-			req := httptest.NewRequest("GET", "/?key="+tt.apiKey, nil)
+			req := httptest.NewRequest("GET", "/?api_key="+tt.apiKey, nil)
 			w := httptest.NewRecorder()
 
 			WithAPIKeyValidation(tt.validator, handler)(w, req)
