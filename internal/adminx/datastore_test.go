@@ -40,7 +40,27 @@ func (f *fakeDatastore) Get(ctx context.Context, key *datastore.Key, dst interfa
 }
 
 func (f *fakeDatastore) GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error) {
-	return nil, f.getErr
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+
+	// If we have test data, return it
+	if f.keys != nil {
+		// Get the destination slice
+		entities := dst.(*[]APIKey)
+		keys := []*datastore.Key{}
+
+		// Add each test entity to the results
+		for keyName, entry := range f.keys {
+			*entities = append(*entities, *entry.entity)
+			key := datastore.NameKey(APIKeyKind, keyName, entry.parent)
+			keys = append(keys, key)
+		}
+		return keys, nil
+	}
+
+	// Empty results if no test data
+	return []*datastore.Key{}, nil
 }
 
 func TestDatastoreOrgManager_ValidateKey(t *testing.T) {

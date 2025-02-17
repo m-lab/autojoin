@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"time"
 
 	"cloud.google.com/go/datastore"
@@ -118,24 +117,22 @@ func (d *DatastoreOrgManager) GetAPIKeys(ctx context.Context, org string) ([]str
 
 // ValidateKey checks if the API key exists and returns the associated organization name.
 func (d *DatastoreOrgManager) ValidateKey(ctx context.Context, key string) (string, error) {
-	// Create the key to look up.
-	apiKey := datastore.NameKey(APIKeyKind, key, nil)
-	apiKey.Namespace = d.namespace
+	q := datastore.NewQuery(APIKeyKind).
+		Namespace(d.namespace).
+		FilterField("__key__", "=", datastore.NameKey(APIKeyKind, key, nil))
 
-	// Try to get the entity
-	var keyEntity APIKey
-	err := d.client.Get(ctx, apiKey, &keyEntity)
-	fmt.Printf("keyEntity: %v, err: %v\n", keyEntity, err)
-	if err == datastore.ErrNoSuchEntity {
-		return "", ErrInvalidKey
-	}
+	var keys []*datastore.Key
+	var entities []APIKey
+	keys, err := d.client.GetAll(ctx, q, &entities)
 	if err != nil {
 		return "", err
 	}
+	if len(keys) == 0 {
+		return "", ErrInvalidKey
+	}
 
-	// Get the parent (organization) key
-	orgKey := apiKey.Parent
-	fmt.Printf("orgKey: %v\n", orgKey)
+	// Get the parent (organization) key from the first result
+	orgKey := keys[0].Parent
 	if orgKey == nil {
 		return "", errors.New("API key has no parent organization")
 	}
