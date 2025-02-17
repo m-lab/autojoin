@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"cloud.google.com/go/datastore"
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"github.com/gomodule/redigo/redis"
 	"github.com/m-lab/autojoin/handler"
@@ -69,9 +70,9 @@ func main() {
 	defer prom.Close()
 
 	// Setup DNS service.
-	ds, err := dns.NewService(mainCtx)
+	dnsService, err := dns.NewService(mainCtx)
 	rtx.Must(err, "failed to create new dns service")
-	d := dnsiface.NewCloudDNSService(ds)
+	d := dnsiface.NewCloudDNSService(dnsService)
 
 	// Setup IATA, maxmind, and asn sources.
 	i, err := iata.New(mainCtx, iataSrc.URL)
@@ -111,6 +112,13 @@ func main() {
 	log.Print("DNS garbage collector started")
 	defer gc.Stop()
 
+	// Setup Datastore client
+	ds, err := datastore.NewClient(mainCtx, project)
+	rtx.Must(err, "failed to create datastore client")
+	defer ds.Close()
+	// Use Datastore manager as validator.
+	validator := adminx.NewDatastoreManager(ds, project)
+
 	// Create server.
 	s := handler.NewServer(project, i, mm, asn, d, gc, sm)
 	go func() {
@@ -144,7 +152,7 @@ func main() {
 	// Nodes register on start up.
 	mux.HandleFunc("/autojoin/v0/node/register", promhttp.InstrumentHandlerDuration(
 		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/register"}),
-		http.HandlerFunc(s.Register)))
+		handler.WithAPIKeyValidation(validator, s.Register)))
 
 	mux.HandleFunc("/autojoin/v0/node/delete", promhttp.InstrumentHandlerDuration(
 		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/delete"}),

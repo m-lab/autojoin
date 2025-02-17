@@ -4,30 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	"cloud.google.com/go/datastore"
 )
 
 var errTest = errors.New("test error")
-
-type fakeDatastore struct {
-	putErr error
-	getErr error
-	keys   []*datastore.Key
-	getAll []string
-}
-
-func (f *fakeDatastore) Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error) {
-	return key, f.putErr
-}
-
-func (f *fakeDatastore) Get(ctx context.Context, key *datastore.Key, dst interface{}) error {
-	return f.getErr
-}
-
-func (f *fakeDatastore) GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error) {
-	return f.keys, f.getErr
-}
 
 func TestAPIKeys_CreateKey(t *testing.T) {
 	tests := []struct {
