@@ -35,6 +35,7 @@ type Organization struct {
 // APIKey represents a Datastore entity for storing API key metadata.
 type APIKey struct {
 	CreatedAt time.Time `datastore:"created_at"`
+	Key       string    `datastore:"key"`
 }
 
 // DatastoreOrgManager maintains state for managing organizations and API keys in Datastore
@@ -85,6 +86,7 @@ func (d *DatastoreOrgManager) CreateAPIKey(ctx context.Context, org string) (str
 
 	apiKey := &APIKey{
 		CreatedAt: time.Now().UTC(),
+		Key:       keyString,
 	}
 
 	_, err = d.client.Put(ctx, key, apiKey)
@@ -119,7 +121,7 @@ func (d *DatastoreOrgManager) GetAPIKeys(ctx context.Context, org string) ([]str
 func (d *DatastoreOrgManager) ValidateKey(ctx context.Context, key string) (string, error) {
 	q := datastore.NewQuery(APIKeyKind).
 		Namespace(d.namespace).
-		FilterField("__key__", "=", datastore.NameKey(APIKeyKind, key, nil))
+		FilterField("key", "=", key).Limit(1)
 
 	var keys []*datastore.Key
 	var entities []APIKey
