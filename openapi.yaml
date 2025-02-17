@@ -72,7 +72,7 @@ paths:
       operationId: "autojoin-v0-node-register"
       parameters:
         - in: query
-          name: key
+          name: api_key
           type: string
           required: true
           description: API key.
@@ -115,6 +115,11 @@ paths:
       operationId: "autojoin-v0-node-delete"
       parameters:
         - in: query
+          name: api_key
+          type: string
+          required: true
+          description: API key.
+        - in: query
           name: hostname
           type: string
           required: true
@@ -124,8 +129,6 @@ paths:
       responses:
         "200":
           description: Deletion was successful.
-      security:
-        - api_key: []
       tags:
         - public
   "/autojoin/v0/node/list":
@@ -147,17 +150,6 @@ paths:
           description: List was successful.
       tags:
         - public
-
-securityDefinitions:
-  # This section configures basic authentication with an API key.
-  # Paths configured with api_key security require an API key for all requests.
-  api_key:
-    type: "apiKey"
-    description: |-
-      An API key for your organization, restricted to the Autojoin API. API keys
-      are allocated by M-Lab for use by a registered organization.
-    name: "key"
-    in: "query"
 
 tags:
   - name: public

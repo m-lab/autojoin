@@ -156,7 +156,7 @@ func main() {
 
 	mux.HandleFunc("/autojoin/v0/node/delete", promhttp.InstrumentHandlerDuration(
 		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/delete"}),
-		http.HandlerFunc(s.Delete)))
+		handler.WithAPIKeyValidation(validator, s.Delete)))
 
 	mux.HandleFunc("/autojoin/v0/node/list", promhttp.InstrumentHandlerDuration(
 		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/list"}),
