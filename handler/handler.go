@@ -157,18 +157,20 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		writeResponse(rw, resp)
 		return
 	}
-	// TODO(soltesz): discover this from a given API key.
-	param.Org = req.URL.Query().Get("organization")
-	if !isValidName(param.Org) {
+
+	// Get the organization from the context.
+	org, ok := req.Context().Value(orgContextKey).(string)
+	if !ok {
 		resp.Error = &v2.Error{
-			Type:   "?organization=<organization>",
-			Title:  "could not determine organization from request",
-			Status: http.StatusBadRequest,
+			Type:   "auth.context",
+			Title:  "missing organization in context",
+			Status: http.StatusInternalServerError,
 		}
 		rw.WriteHeader(resp.Error.Status)
 		writeResponse(rw, resp)
 		return
 	}
+	param.Org = org
 	param.IPv6 = checkIP(req.URL.Query().Get("ipv6")) // optional.
 	param.IPv4 = checkIP(getClientIP(req))
 	ip := net.ParseIP(param.IPv4)

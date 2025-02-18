@@ -4,12 +4,20 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"time"
 
 	"cloud.google.com/go/datastore"
 )
 
 const autojoinNamespace = "autojoin"
+const OrgKind = "Organization"
+const APIKeyKind = "APIKey"
+
+var (
+	// ErrInvalidKey is returned when the API key is not found in Datastore
+	ErrInvalidKey = errors.New("invalid API key")
+)
 
 type DatastoreClient interface {
 	Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error)
@@ -27,6 +35,7 @@ type Organization struct {
 // APIKey represents a Datastore entity for storing API key metadata.
 type APIKey struct {
 	CreatedAt time.Time `datastore:"created_at"`
+	Key       string    `datastore:"key"`
 }
 
 // DatastoreOrgManager maintains state for managing organizations and API keys in Datastore
@@ -47,7 +56,7 @@ func NewDatastoreManager(client DatastoreClient, project string) *DatastoreOrgMa
 
 // Add CreateOrganization method
 func (d *DatastoreOrgManager) CreateOrganization(ctx context.Context, name, email string) error {
-	key := datastore.NameKey("Organization", name, nil)
+	key := datastore.NameKey(OrgKind, name, nil)
 	key.Namespace = d.namespace
 
 	org := &Organization{
@@ -62,7 +71,7 @@ func (d *DatastoreOrgManager) CreateOrganization(ctx context.Context, name, emai
 
 // CreateAPIKey creates a new API key as a child entity of the organization
 func (d *DatastoreOrgManager) CreateAPIKey(ctx context.Context, org string) (string, error) {
-	parentKey := datastore.NameKey("Organization", org, nil)
+	parentKey := datastore.NameKey(OrgKind, org, nil)
 	parentKey.Namespace = d.namespace
 
 	// Generate random API key
@@ -72,11 +81,12 @@ func (d *DatastoreOrgManager) CreateAPIKey(ctx context.Context, org string) (str
 	}
 
 	// Use the generated string as the key name
-	key := datastore.NameKey("APIKey", keyString, parentKey)
+	key := datastore.NameKey(APIKeyKind, keyString, parentKey)
 	key.Namespace = d.namespace
 
 	apiKey := &APIKey{
 		CreatedAt: time.Now().UTC(),
+		Key:       keyString,
 	}
 
 	_, err = d.client.Put(ctx, key, apiKey)
@@ -89,10 +99,10 @@ func (d *DatastoreOrgManager) CreateAPIKey(ctx context.Context, org string) (str
 
 // GetAPIKeys retrieves all API keys for an organization
 func (d *DatastoreOrgManager) GetAPIKeys(ctx context.Context, org string) ([]string, error) {
-	parentKey := datastore.NameKey("Organization", org, nil)
+	parentKey := datastore.NameKey(OrgKind, org, nil)
 	parentKey.Namespace = d.namespace
 
-	q := datastore.NewQuery("APIKey").Ancestor(parentKey).KeysOnly()
+	q := datastore.NewQuery(APIKeyKind).Ancestor(parentKey).KeysOnly()
 
 	keys, err := d.client.GetAll(ctx, q, nil)
 	if err != nil {
@@ -105,6 +115,31 @@ func (d *DatastoreOrgManager) GetAPIKeys(ctx context.Context, org string) ([]str
 	}
 
 	return apiKeys, nil
+}
+
+// ValidateKey checks if the API key exists and returns the associated organization name.
+func (d *DatastoreOrgManager) ValidateKey(ctx context.Context, key string) (string, error) {
+	q := datastore.NewQuery(APIKeyKind).
+		Namespace(d.namespace).
+		FilterField("key", "=", key).Limit(1)
+
+	var keys []*datastore.Key
+	var entities []APIKey
+	keys, err := d.client.GetAll(ctx, q, &entities)
+	if err != nil {
+		return "", err
+	}
+	if len(keys) == 0 {
+		return "", ErrInvalidKey
+	}
+
+	// Get the parent (organization) key from the first result
+	orgKey := keys[0].Parent
+	if orgKey == nil {
+		return "", errors.New("API key has no parent organization")
+	}
+
+	return orgKey.Name, nil
 }
 
 // GenerateAPIKey generates a random string to be used as API key.

@@ -336,12 +336,14 @@ func TestServer_Register(t *testing.T) {
 		Tracker  DNSTracker
 		sm       ServiceAccountSecretManager
 		params   string
+		org      string
 		wantName string
 		wantCode int
 	}{
 		{
 			name:    "success",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g",
+			org:     "bar",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -355,7 +357,8 @@ func TestServer_Register(t *testing.T) {
 		},
 		{
 			name:    "success-probability-invalid-ports-invalid",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=invalid&ports=invalid&type=virtual&uplink=10g",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=invalid&ports=invalid&type=virtual&uplink=10g",
+			org:     "bar",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -378,46 +381,48 @@ func TestServer_Register(t *testing.T) {
 			wantCode: http.StatusBadRequest,
 		},
 		{
-			name:     "error-bad-organization",
-			params:   "?service=foo&organization=-BAD-NAME-",
-			wantCode: http.StatusBadRequest,
-		},
-		{
 			name:     "error-bad-type",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=dell&uplink=50g",
+			params:   "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=dell&uplink=50g",
+			org:      "bar",
 			wantCode: http.StatusBadRequest,
 		},
 		{
 			name:     "error-bad-uplink",
-			params:   "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=virtual&uplink=10",
+			params:   "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=virtual&uplink=10",
+			org:      "bar",
 			wantCode: http.StatusBadRequest,
 		},
 		{
 			name:     "error-bad-ip",
-			params:   "?service=foo&organization=bar&ipv4=-BAD-IP-",
+			params:   "?service=foo&ipv4=-BAD-IP-",
+			org:      "bar",
 			wantCode: http.StatusBadRequest,
 		},
 		{
 			name:     "error-invalid-iata",
-			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=-invalid-",
+			params:   "?service=foo&ipv4=192.168.0.1&iata=-invalid-",
+			org:      "bar",
 			wantCode: http.StatusBadRequest,
 		},
 		{
 			name:     "error-bad-iata-find",
 			Iata:     &fakeIataFinder{findErr: errors.New("find err")},
-			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=123&type=physical&uplink=20g",
+			params:   "?service=foo&ipv4=192.168.0.1&iata=123&type=physical&uplink=20g",
+			org:      "bar",
 			wantCode: http.StatusInternalServerError,
 		},
 		{
 			name:     "error-bad-maxmind-city",
 			Iata:     &fakeIataFinder{findRow: iata.Row{}},
 			Maxmind:  &fakeMaxmind{err: errors.New("fake maxmind error")},
-			params:   "?service=foo&organization=bar&ipv4=192.168.0.1&iata=abc&type=virtual&uplink=1000g",
+			params:   "?service=foo&ipv4=192.168.0.1&iata=abc&type=virtual&uplink=1000g",
+			org:      "bar",
 			wantCode: http.StatusInternalServerError,
 		},
 		{
 			name:    "error-loading-key",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
+			org:     "bar",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -429,7 +434,8 @@ func TestServer_Register(t *testing.T) {
 		},
 		{
 			name:    "error-registration",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&type=virtual&uplink=1g",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=virtual&uplink=1g",
+			org:     "bar",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -441,7 +447,8 @@ func TestServer_Register(t *testing.T) {
 		},
 		{
 			name:    "error-tracker-update-error",
-			params:  "?service=foo&organization=bar&iata=lga&ipv4=192.168.0.1&type=physical&uplink=20g",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=20g",
+			org:     "bar",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
 			ASN:     fakeASN,
@@ -461,6 +468,9 @@ func TestServer_Register(t *testing.T) {
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
+			// Inject fake organization into context.
+			ctx := context.WithValue(req.Context(), orgContextKey, tt.org)
+			req = req.WithContext(ctx)
 			s.Register(rw, req)
 
 			if rw.Code != tt.wantCode {

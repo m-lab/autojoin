@@ -36,7 +36,6 @@ var (
 	endpoint    = flag.String("endpoint", registerEndpoint, "Endpoint of the autojoin service")
 	apiKey      = flag.String("key", "", "API key for the autojoin service")
 	service     = flag.String("service", "ndt", "Service name to register with the autojoin service")
-	org         = flag.String("organization", "", "Organization to register with the autojoin service")
 	iata        = flagx.StringFile{}
 	ipv4        = flagx.StringFile{}
 	ipv6        = flagx.StringFile{}
@@ -85,8 +84,9 @@ func main() {
 		}
 	}
 
-	if *endpoint == "" || *apiKey == "" || *service == "" || *org == "" || iata.Value == "" {
-		panic("-key, -service, -organization, and -iata are required.")
+	if *endpoint == "" || *apiKey == "" || *service == "" || iata.Value == "" ||
+		*machineType == "" || *uplink == "" {
+		panic("-key, -service, -iata, -type and -uplink are required.")
 	}
 	if probability <= 0.0 || probability > 1.0 {
 		panic("-probability must be in the range (0, 1]")
@@ -125,7 +125,6 @@ func register() {
 	q := registerURL.Query()
 	q.Add("api_key", *apiKey)
 	q.Add("service", *service)
-	q.Add("organization", *org)
 	q.Add("iata", iata.Value)
 	q.Add("ipv4", ipv4.Value)
 	q.Add("ipv6", ipv6.Value)
