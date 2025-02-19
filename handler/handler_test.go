@@ -22,6 +22,8 @@ import (
 	"google.golang.org/api/dns/v1"
 )
 
+const defaultMinVersion = "v0.0.0"
+
 type fakeIataFinder struct {
 	iata      string
 	lookupErr error
@@ -241,7 +243,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -263,7 +265,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, defaultMinVersion)
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -273,7 +275,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil)
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, defaultMinVersion)
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -328,17 +330,18 @@ func TestServer_Register(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		Iata     IataFinder
-		Maxmind  MaxmindFinder
-		ASN      ASNFinder
-		DNS      dnsiface.Service
-		Tracker  DNSTracker
-		sm       ServiceAccountSecretManager
-		params   string
-		org      string
-		wantName string
-		wantCode int
+		name       string
+		Iata       IataFinder
+		Maxmind    MaxmindFinder
+		ASN        ASNFinder
+		DNS        dnsiface.Service
+		Tracker    DNSTracker
+		sm         ServiceAccountSecretManager
+		params     string
+		org        string
+		minVersion string
+		wantName   string
+		wantCode   int
 	}{
 		{
 			name:    "success",
@@ -352,8 +355,9 @@ func TestServer_Register(t *testing.T) {
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
-			wantCode: http.StatusOK,
+			minVersion: defaultMinVersion,
+			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:   http.StatusOK,
 		},
 		{
 			name:    "success-probability-invalid-ports-invalid",
@@ -367,57 +371,66 @@ func TestServer_Register(t *testing.T) {
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
-			wantCode: http.StatusOK,
+			minVersion: defaultMinVersion,
+			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:   http.StatusOK,
 		},
 		{
-			name:     "error-service-empty",
-			params:   "?service=",
-			wantCode: http.StatusBadRequest,
+			name:       "error-service-empty",
+			params:     "?service=",
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusBadRequest,
 		},
 		{
-			name:     "error-service-too-long",
-			params:   "?service=abcdefghijklm",
-			wantCode: http.StatusBadRequest,
+			name:       "error-service-too-long",
+			params:     "?service=abcdefghijklm",
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusBadRequest,
 		},
 		{
-			name:     "error-bad-type",
-			params:   "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=dell&uplink=50g",
-			org:      "bar",
-			wantCode: http.StatusBadRequest,
+			name:       "error-bad-type",
+			params:     "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=dell&uplink=50g",
+			org:        "bar",
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusBadRequest,
 		},
 		{
-			name:     "error-bad-uplink",
-			params:   "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=virtual&uplink=10",
-			org:      "bar",
-			wantCode: http.StatusBadRequest,
+			name:       "error-bad-uplink",
+			params:     "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=virtual&uplink=10",
+			org:        "bar",
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusBadRequest,
 		},
 		{
-			name:     "error-bad-ip",
-			params:   "?service=foo&ipv4=-BAD-IP-",
-			org:      "bar",
-			wantCode: http.StatusBadRequest,
+			name:       "error-bad-ip",
+			params:     "?service=foo&ipv4=-BAD-IP-",
+			org:        "bar",
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusBadRequest,
 		},
 		{
-			name:     "error-invalid-iata",
-			params:   "?service=foo&ipv4=192.168.0.1&iata=-invalid-",
-			org:      "bar",
-			wantCode: http.StatusBadRequest,
+			name:       "error-invalid-iata",
+			params:     "?service=foo&ipv4=192.168.0.1&iata=-invalid-",
+			org:        "bar",
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusBadRequest,
 		},
 		{
-			name:     "error-bad-iata-find",
-			Iata:     &fakeIataFinder{findErr: errors.New("find err")},
-			params:   "?service=foo&ipv4=192.168.0.1&iata=123&type=physical&uplink=20g",
-			org:      "bar",
-			wantCode: http.StatusInternalServerError,
+			name:       "error-bad-iata-find",
+			Iata:       &fakeIataFinder{findErr: errors.New("find err")},
+			params:     "?service=foo&ipv4=192.168.0.1&iata=123&type=physical&uplink=20g",
+			org:        "bar",
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusInternalServerError,
 		},
 		{
-			name:     "error-bad-maxmind-city",
-			Iata:     &fakeIataFinder{findRow: iata.Row{}},
-			Maxmind:  &fakeMaxmind{err: errors.New("fake maxmind error")},
-			params:   "?service=foo&ipv4=192.168.0.1&iata=abc&type=virtual&uplink=1000g",
-			org:      "bar",
-			wantCode: http.StatusInternalServerError,
+			name:       "error-bad-maxmind-city",
+			Iata:       &fakeIataFinder{findRow: iata.Row{}},
+			Maxmind:    &fakeMaxmind{err: errors.New("fake maxmind error")},
+			params:     "?service=foo&ipv4=192.168.0.1&iata=abc&type=virtual&uplink=1000g",
+			org:        "bar",
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusInternalServerError,
 		},
 		{
 			name:    "error-loading-key",
@@ -430,7 +443,8 @@ func TestServer_Register(t *testing.T) {
 			sm: &fakeSecretManager{
 				err: fmt.Errorf("fake key load error"),
 			},
-			wantCode: http.StatusInternalServerError,
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusInternalServerError,
 		},
 		{
 			name:    "error-registration",
@@ -443,7 +457,8 @@ func TestServer_Register(t *testing.T) {
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			wantCode: http.StatusInternalServerError,
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusInternalServerError,
 		},
 		{
 			name:    "error-tracker-update-error",
@@ -457,14 +472,108 @@ func TestServer_Register(t *testing.T) {
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			wantName: "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
-			wantCode: http.StatusInternalServerError,
+			minVersion: defaultMinVersion,
+			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:   http.StatusInternalServerError,
+		},
+		{
+			name:    "success-with-version",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g&version=1.0.0",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			minVersion: "1.0.0",
+			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:   http.StatusOK,
+		},
+		{
+			name:    "success-no-version",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			minVersion: defaultMinVersion,
+			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:   http.StatusOK,
+		},
+		{
+			name:    "success-newer-version",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g&version=2.0.0",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			minVersion: "1.0.0",
+			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:   http.StatusOK,
+		},
+		{
+			name:    "error-invalid-version-format",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g&version=not.valid.version",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			minVersion: "1.0.0",
+			wantCode:   http.StatusBadRequest,
+		},
+		{
+			name:    "error-version-too-old",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g&version=0.9.0",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			minVersion: "1.0.0",
+			wantCode:   http.StatusForbidden,
+		},
+		{
+			name:    "error-no-version-when-minimum-required",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			minVersion: "1.0.0",
+			wantCode:   http.StatusForbidden,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, tt.sm)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, tt.sm, tt.minVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -550,7 +659,7 @@ func TestServer_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil)
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
 			s.Delete(rw, req)
@@ -654,7 +763,7 @@ func TestServer_List(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister, nil)
+			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister, nil, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)
 

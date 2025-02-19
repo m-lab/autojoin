@@ -36,6 +36,7 @@ var (
 	listenPort   string
 	project      string
 	redisAddr    string
+	minVersion   string
 	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.21/iata-icao.csv")
 	maxmindSrc   = flagx.URL{}
 	routeviewSrc = flagx.URL{}
@@ -47,6 +48,7 @@ func init() {
 	// PORT and GOOGLE_CLOUD_PROJECT are part of the default App Engine environment.
 	flag.StringVar(&listenPort, "port", "8080", "AppEngine port environment variable")
 	flag.StringVar(&project, "google-cloud-project", "", "AppEngine project environment variable")
+	flag.StringVar(&minVersion, "min-version", "0.0.0", "Minimum version of the client to accept")
 	flag.Var(&iataSrc, "iata-url", "URL to IATA dataset")
 	flag.Var(&maxmindSrc, "maxmind-url", "URL of a Maxmind GeoIP dataset, e.g. gs://bucket/file or file:./relativepath/file")
 	flag.Var(&routeviewSrc, "routeview-v4.url", "URL of an ip2prefix routeview IPv4 dataset, e.g. gs://bucket/file and file:./relativepath/file")
@@ -120,7 +122,7 @@ func main() {
 	validator := adminx.NewDatastoreManager(ds, project)
 
 	// Create server.
-	s := handler.NewServer(project, i, mm, asn, d, gc, sm)
+	s := handler.NewServer(project, i, mm, asn, d, gc, sm, minVersion)
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)

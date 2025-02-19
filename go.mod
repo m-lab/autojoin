@@ -1,11 +1,12 @@
 module github.com/m-lab/autojoin
 
-go 1.20
+go 1.21
 
 require (
 	cloud.google.com/go/apikeys v1.1.12
 	cloud.google.com/go/datastore v1.17.1
 	cloud.google.com/go/secretmanager v1.13.5
+	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/go-test/deep v1.1.1
 	github.com/gomodule/redigo v1.8.8
 	github.com/googleapis/gax-go v1.0.3
