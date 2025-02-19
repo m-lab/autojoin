@@ -85,8 +85,8 @@ func main() {
 	}
 
 	if *endpoint == "" || *apiKey == "" || *service == "" || iata.Value == "" ||
-		*machineType == "" || *uplink == "" {
-		panic("-key, -service, -iata, -type and -uplink are required.")
+		*machineType == "" || *uplink == "" || ipv4.Value == "" {
+		panic("-key, -ipv4, -service, -iata, -type and -uplink are required.")
 	}
 	if probability <= 0.0 || probability > 1.0 {
 		panic("-probability must be in the range (0, 1]")
