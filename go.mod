@@ -2,8 +2,6 @@ module github.com/m-lab/autojoin
 
 go 1.21
 
-toolchain go1.22.2
-
 require (
 	cloud.google.com/go/apikeys v1.1.12
 	cloud.google.com/go/datastore v1.17.1
