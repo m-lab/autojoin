@@ -32,6 +32,9 @@ const (
 	hostnameFilename       = "hostname"
 )
 
+// Replaced by the linker with the current version at build time.
+var Version = "0.0.0"
+
 var (
 	endpoint    = flag.String("endpoint", registerEndpoint, "Endpoint of the autojoin service")
 	apiKey      = flag.String("key", "", "API key for the autojoin service")
@@ -131,6 +134,8 @@ func register() {
 	q.Add("type", *machineType)
 	q.Add("uplink", *uplink)
 	q.Add("probability", siteProb.Value)
+	q.Add("version", Version)
+
 	for _, port := range ports {
 		q.Add("ports", port)
 	}
