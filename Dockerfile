@@ -1,10 +1,11 @@
 # Build stage.
 FROM golang:1.22-alpine as builder
+RUN apk add --no-cache git
 WORKDIR /go/src/m-lab/autojoin
 COPY . .
 RUN go mod download
-
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /go/bin/register ./cmd/register
+RUN GIT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0") && \
+    CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=${GIT_TAG}" -o /go/bin/register ./cmd/register
 
 # Run stage.
 FROM alpine:3.20

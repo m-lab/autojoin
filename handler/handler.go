@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Masterminds/semver/v3"
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
 	"github.com/m-lab/autojoin/internal/dnsname"
@@ -35,11 +36,12 @@ var (
 
 // Server maintains shared state for the server.
 type Server struct {
-	Project string
-	Iata    IataFinder
-	Maxmind MaxmindFinder
-	ASN     ASNFinder
-	DNS     dnsiface.Service
+	Project    string
+	Iata       IataFinder
+	Maxmind    MaxmindFinder
+	ASN        ASNFinder
+	DNS        dnsiface.Service
+	minVersion *semver.Version
 
 	sm         ServiceAccountSecretManager
 	dnsTracker DNSTracker
@@ -77,14 +79,17 @@ type ServiceAccountSecretManager interface {
 
 // NewServer creates a new Server instance for request handling.
 func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
-	ds dnsiface.Service, tracker DNSTracker, sm ServiceAccountSecretManager) *Server {
+	ds dnsiface.Service, tracker DNSTracker, sm ServiceAccountSecretManager, minVersion string) *Server {
+	v, err := semver.NewVersion(minVersion)
+	rtx.Must(err, "invalid minimum version")
 	return &Server{
-		Project: project,
-		Iata:    finder,
-		Maxmind: maxmind,
-		ASN:     asn,
-		DNS:     ds,
-		sm:      sm,
+		Project:    project,
+		Iata:       finder,
+		Maxmind:    maxmind,
+		ASN:        asn,
+		DNS:        ds,
+		sm:         sm,
+		minVersion: v,
 
 		dnsTracker: tracker,
 	}
@@ -145,6 +150,41 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 
 	resp := v0.RegisterResponse{}
+
+	// Check version first.
+	versionStr := req.URL.Query().Get("version")
+	// If no version is provided, default to v0.0.0. This allows existing clients
+	// that do not provide the version yet to keep working until a minVersion is set.
+	if versionStr == "" {
+		versionStr = "v0.0.0"
+	}
+
+	// Parse the provided version.
+	clientVersion, err := semver.NewVersion(versionStr)
+	if err != nil {
+		resp.Error = &v2.Error{
+			Type:   "version.invalid",
+			Title:  "invalid version format - must be semantic version (e.g. v1.2.3)",
+			Detail: err.Error(),
+			Status: http.StatusBadRequest,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
+	if clientVersion.LessThan(s.minVersion) {
+		resp.Error = &v2.Error{
+			Type: "version.outdated",
+			Title: fmt.Sprintf("version %s is below minimum required version %s",
+				clientVersion.String(), s.minVersion.String()),
+			Status: http.StatusForbidden,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
 	param := &register.Params{Project: s.Project}
 	param.Service = req.URL.Query().Get("service")
 	if !isValidName(param.Service) {
