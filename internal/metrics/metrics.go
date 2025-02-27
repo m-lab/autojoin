@@ -14,7 +14,7 @@ var (
 			Help: "The amount of time before a DNS record will be removed",
 		},
 		[]string{
-			"hostname",
+			"fqdn",
 		},
 	)
 
