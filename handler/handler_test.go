@@ -263,7 +263,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, nil, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -285,7 +285,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, nil, defaultMinVersion)
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -295,7 +295,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, nil, defaultMinVersion)
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -679,7 +679,7 @@ func TestServer_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil, nil, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
 			s.Delete(rw, req)
@@ -783,7 +783,7 @@ func TestServer_List(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
+			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister, nil, nil, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)
 
