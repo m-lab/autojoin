@@ -299,7 +299,7 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	}
 	// Assign the probability by multiplying the org multiplier with the
 	// probability requested by the client.
-	param.Probability = getProbability(req, orgMultiplier)
+	param.Probability = getProbability(req) * orgMultiplier
 	r := register.CreateRegisterResponse(param)
 
 	key, err := s.sm.LoadOrCreateKey(req.Context(), param.Org)
@@ -627,16 +627,16 @@ func getClientIP(req *http.Request) string {
 	return hip
 }
 
-func getProbability(req *http.Request, orgMultiplier float64) float64 {
+func getProbability(req *http.Request) float64 {
 	prob := req.URL.Query().Get("probability")
 	if prob == "" {
-		return 1.0 * orgMultiplier
+		return 1.0
 	}
 	p, err := strconv.ParseFloat(prob, 64)
 	if err != nil {
-		return 1.0 * orgMultiplier
+		return 1.0
 	}
-	return p * orgMultiplier
+	return p
 }
 
 func getPorts(req *http.Request) []string {
