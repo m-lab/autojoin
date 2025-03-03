@@ -15,6 +15,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/dnsname"
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
@@ -45,6 +46,7 @@ type Server struct {
 
 	sm         ServiceAccountSecretManager
 	dnsTracker DNSTracker
+	dsm        Datastore
 }
 
 // ASNFinder is an interface used by the Server to manage ASN information.
@@ -77,9 +79,14 @@ type ServiceAccountSecretManager interface {
 	LoadOrCreateKey(ctx context.Context, org string) (string, error)
 }
 
+type Datastore interface {
+	GetOrganization(ctx context.Context, name string) (*adminx.Organization, error)
+}
+
 // NewServer creates a new Server instance for request handling.
 func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASNFinder,
-	ds dnsiface.Service, tracker DNSTracker, sm ServiceAccountSecretManager, minVersion string) *Server {
+	ds dnsiface.Service, tracker DNSTracker, sm ServiceAccountSecretManager, dsm Datastore,
+	minVersion string) *Server {
 	v, err := semver.NewVersion(minVersion)
 	rtx.Must(err, "invalid minimum version")
 	return &Server{
@@ -92,6 +99,7 @@ func NewServer(project string, finder IataFinder, maxmind MaxmindFinder, asn ASN
 		minVersion: v,
 
 		dnsTracker: tracker,
+		dsm:        dsm,
 	}
 }
 
@@ -282,9 +290,16 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	}
 	param.Geo = record
 	param.Network = s.ASN.AnnotateIP(param.IPv4)
-	// Override site probability with user-provided parameter.
-	// TODO(soltesz): include M-Lab override option
-	param.Probability = getProbability(req)
+
+	// Get the organization probability multiplier.
+	orgEntity, err := s.dsm.GetOrganization(req.Context(), param.Org)
+	orgMultiplier := 1.0
+	if err == nil && orgEntity != nil {
+		orgMultiplier = orgEntity.ProbabilityMultiplier
+	}
+	// Assign the probability by multiplying the org multiplier with the
+	// probability requested by the client.
+	param.Probability = getProbability(req, orgMultiplier)
 	r := register.CreateRegisterResponse(param)
 
 	key, err := s.sm.LoadOrCreateKey(req.Context(), param.Org)
@@ -612,16 +627,16 @@ func getClientIP(req *http.Request) string {
 	return hip
 }
 
-func getProbability(req *http.Request) float64 {
+func getProbability(req *http.Request, orgMultiplier float64) float64 {
 	prob := req.URL.Query().Get("probability")
 	if prob == "" {
-		return 1.0
+		return 1.0 * orgMultiplier
 	}
 	p, err := strconv.ParseFloat(prob, 64)
 	if err != nil {
-		return 1.0
+		return 1.0 * orgMultiplier
 	}
-	return p
+	return p * orgMultiplier
 }
 
 func getPorts(req *http.Request) []string {

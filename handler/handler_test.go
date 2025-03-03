@@ -13,6 +13,7 @@ import (
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/gcp-service-discovery/discovery"
 	"github.com/m-lab/go/host"
@@ -112,6 +113,25 @@ type fakeSecretManager struct {
 
 func (f *fakeSecretManager) LoadOrCreateKey(ctx context.Context, org string) (string, error) {
 	return f.key, f.err
+}
+
+type fakeDatastoreOrgManager struct {
+	org *adminx.Organization
+	err error
+}
+
+func (f *fakeDatastoreOrgManager) GetOrganization(ctx context.Context, orgName string) (*adminx.Organization, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.org == nil {
+		// Return default if not specified
+		return &adminx.Organization{
+			Name:                  orgName,
+			ProbabilityMultiplier: 1.0,
+		}, nil
+	}
+	return f.org, nil
 }
 
 func TestServer_Lookup(t *testing.T) {
@@ -243,7 +263,7 @@ func TestServer_Lookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, defaultMinVersion)
+			s := NewServer("mlab-sandbox", tt.iata, tt.maxmind, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, "/autojoin/v0/lookup"+tt.request, nil)
 			for key, value := range tt.headers {
@@ -265,7 +285,7 @@ func TestServer_Lookup(t *testing.T) {
 func TestServer_Reload(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		f := &fakeIataFinder{}
-		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, defaultMinVersion)
+		s := NewServer("mlab-sandbox", f, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
 		s.Reload(context.Background())
 		if f.loads != 1 {
 			t.Errorf("Reload failed to call iata loader")
@@ -275,7 +295,7 @@ func TestServer_Reload(t *testing.T) {
 
 func TestServer_LiveAndReady(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, defaultMinVersion)
+		s := NewServer("mlab-sandbox", &fakeIataFinder{}, &fakeMaxmind{}, &fakeAsn{}, &fakeDNS{}, &fakeStatusTracker{}, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
 		rw := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		s.Live(rw, req)
@@ -573,7 +593,7 @@ func TestServer_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, tt.sm, tt.minVersion)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, tt.sm, &fakeDatastoreOrgManager{}, tt.minVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -659,7 +679,7 @@ func TestServer_Delete(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil, defaultMinVersion)
+			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
 			s.Delete(rw, req)
@@ -763,7 +783,7 @@ func TestServer_List(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister, nil, defaultMinVersion)
+			s := NewServer("mlab-sandbox", nil, nil, nil, nil, tt.lister, nil, &fakeDatastoreOrgManager{}, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/list"+tt.params, nil)
 
