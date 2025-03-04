@@ -19,17 +19,19 @@ var (
 	ErrInvalidKey = errors.New("invalid API key")
 )
 
+// DatastoreClient is an interface for interacting with Datastore.
 type DatastoreClient interface {
 	Put(ctx context.Context, key *datastore.Key, src interface{}) (*datastore.Key, error)
 	Get(ctx context.Context, key *datastore.Key, dst interface{}) error
 	GetAll(ctx context.Context, q *datastore.Query, dst interface{}) ([]*datastore.Key, error)
 }
 
-// Organization represents a Datastore entity for storing organization metadata
+// Organization represents a Datastore entity for storing organization metadata.
 type Organization struct {
-	Name      string    `datastore:"name"`
-	Email     string    `datastore:"email"`
-	CreatedAt time.Time `datastore:"created_at"`
+	Name                  string    `datastore:"name"`
+	Email                 string    `datastore:"email"`
+	CreatedAt             time.Time `datastore:"created_at"`
+	ProbabilityMultiplier float64   `datastore:"probability_multiplier"`
 }
 
 // APIKey represents a Datastore entity for storing API key metadata.
@@ -38,14 +40,14 @@ type APIKey struct {
 	Key       string    `datastore:"key"`
 }
 
-// DatastoreOrgManager maintains state for managing organizations and API keys in Datastore
+// DatastoreOrgManager maintains state for managing organizations and API keys in Datastore.
 type DatastoreOrgManager struct {
 	client    DatastoreClient
 	project   string
 	namespace string
 }
 
-// Add constructor
+// NewDatastoreManager creates a new DatastoreOrgManager instance.
 func NewDatastoreManager(client DatastoreClient, project string) *DatastoreOrgManager {
 	return &DatastoreOrgManager{
 		client:    client,
@@ -54,19 +56,34 @@ func NewDatastoreManager(client DatastoreClient, project string) *DatastoreOrgMa
 	}
 }
 
-// Add CreateOrganization method
+// CreateOrganization creates a new organization entity in Datastore.
 func (d *DatastoreOrgManager) CreateOrganization(ctx context.Context, name, email string) error {
 	key := datastore.NameKey(OrgKind, name, nil)
 	key.Namespace = d.namespace
 
 	org := &Organization{
-		Name:      name,
-		Email:     email,
-		CreatedAt: time.Now().UTC(),
+		Name:                  name,
+		Email:                 email,
+		CreatedAt:             time.Now().UTC(),
+		ProbabilityMultiplier: 1.0,
 	}
 
 	_, err := d.client.Put(ctx, key, org)
 	return err
+}
+
+// GetOrganization retrieves an organization by its name.
+func (d *DatastoreOrgManager) GetOrganization(ctx context.Context, orgName string) (*Organization, error) {
+	key := datastore.NameKey(OrgKind, orgName, nil)
+	key.Namespace = d.namespace
+
+	var org Organization
+	err := d.client.Get(ctx, key, &org)
+	if err != nil {
+		return nil, err
+	}
+
+	return &org, nil
 }
 
 // CreateAPIKey creates a new API key as a child entity of the organization

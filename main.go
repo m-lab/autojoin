@@ -118,11 +118,10 @@ func main() {
 	ds, err := datastore.NewClient(mainCtx, project)
 	rtx.Must(err, "failed to create datastore client")
 	defer ds.Close()
-	// Use Datastore manager as validator.
-	validator := adminx.NewDatastoreManager(ds, project)
+	dsm := adminx.NewDatastoreManager(ds, project)
 
 	// Create server.
-	s := handler.NewServer(project, i, mm, asn, d, gc, sm, minVersion)
+	s := handler.NewServer(project, i, mm, asn, d, gc, sm, dsm, minVersion)
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)
@@ -154,11 +153,11 @@ func main() {
 	// Nodes register on start up.
 	mux.HandleFunc("/autojoin/v0/node/register", promhttp.InstrumentHandlerDuration(
 		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/register"}),
-		handler.WithAPIKeyValidation(validator, s.Register)))
+		handler.WithAPIKeyValidation(dsm, s.Register)))
 
 	mux.HandleFunc("/autojoin/v0/node/delete", promhttp.InstrumentHandlerDuration(
 		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/delete"}),
-		handler.WithAPIKeyValidation(validator, s.Delete)))
+		handler.WithAPIKeyValidation(dsm, s.Delete)))
 
 	mux.HandleFunc("/autojoin/v0/node/list", promhttp.InstrumentHandlerDuration(
 		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/list"}),
