@@ -40,7 +40,7 @@ func (n *Namer) GetServiceAccountName(org string) string {
 
 // GetSecretID returns a secret ID for this org, e.g. autojoin-serviceaccount-key-org.
 func (n *Namer) GetSecretID(org string) string {
-	return "autojoin-serviceaccount-key-" + org
+	return "autojoin-serviceaccount-key-" + strings.ReplaceAll(org, ".", "-")
 }
 
 // GetSecretName returns the google cloud secret resource name, e.g.
@@ -64,5 +64,5 @@ func (n *Namer) GetAPIKeyName(org string) string {
 // GetAPIKeyID returns the API key resource ID for the given org.
 // e.g. autojoin-key-foo
 func (n *Namer) GetAPIKeyID(org string) string {
-	return "autojoin-key-" + org
+	return "autojoin-key-" + strings.ReplaceAll(org, ".", "-")
 }
