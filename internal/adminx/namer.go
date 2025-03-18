@@ -1,5 +1,9 @@
 package adminx
 
+import (
+	"strings"
+)
+
 // Namer contains metadata needed for resource naming.
 type Namer struct {
 	Project string
@@ -16,9 +20,10 @@ func (n *Namer) GetProjectsName() string {
 	return "projects/" + n.Project
 }
 
-// GetServiceAccountID returns a service account ID for this org, e.g. autonode-org.
+// GetServiceAccountID returns a service account ID for this org, e.g.
+// autonode-org, replacing all dots with dashes in the org name.
 func (n *Namer) GetServiceAccountID(org string) string {
-	return "autonode-" + org
+	return "autonode-" + strings.ReplaceAll(org, ".", "-")
 }
 
 // GetServiceAccountEmail returns a service account email for this org, e.g.
