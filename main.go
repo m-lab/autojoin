@@ -37,7 +37,7 @@ var (
 	project      string
 	redisAddr    string
 	minVersion   string
-	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.21/iata-icao.csv")
+	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.25/iata-icao.csv")
 	maxmindSrc   = flagx.URL{}
 	routeviewSrc = flagx.URL{}
 	gcTTL        time.Duration
