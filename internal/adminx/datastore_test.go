@@ -2,11 +2,14 @@ package adminx
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"cloud.google.com/go/datastore"
 )
+
+var errTest = errors.New("test error")
 
 type fakeDatastore struct {
 	// Map of key name to (entity, parent key) pair

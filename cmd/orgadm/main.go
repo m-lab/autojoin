@@ -5,11 +5,13 @@ import (
 	"flag"
 	"log"
 
+	apikeys "cloud.google.com/go/apikeys/apiv2"
 	"cloud.google.com/go/datastore"
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/adminx/crmiface"
 	"github.com/m-lab/autojoin/internal/adminx/iamiface"
+	"github.com/m-lab/autojoin/internal/adminx/keysiface"
 	"github.com/m-lab/autojoin/internal/dnsname"
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
@@ -66,15 +68,28 @@ func main() {
 
 	// Initialize Datastore manager
 	ds := adminx.NewDatastoreManager(dsc, project)
-	k := adminx.NewAPIKeys(ds)
 
+	ac, err := apikeys.NewClient(ctx)
+	rtx.Must(err, "failed to create new apikey client")
 	if project == "mlab-autojoin" && locateProject == "" {
 		locateProject = "mlab-ns"
 	}
 
+	// Local project names are taken from the namer.
+	k := adminx.NewAPIKeys(locateProject, keysiface.NewKeys(ac), nn)
+	defer ac.Close()
+
 	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d, k, ds, updateTables)
 	err = o.Setup(ctx, org, orgEmail)
 	rtx.Must(err, "failed to set up new organization: "+org)
-	key, err := o.CreateAPIKey(ctx, org)
-	log.Println("Setup okay - org:", org, "key:", key)
+
+	// Create API key for Locate/Heartbeat.
+	locateKey, err := k.CreateKey(ctx, org)
+	rtx.Must(err, "failed to create locate key")
+
+	// Create API key for autojoin with the same value as the Locate key.
+	key, err := o.CreateAPIKeyWithValue(ctx, org, locateKey)
+
+	log.Println("Setup okay - org:", org)
+	log.Println("API_KEY:", key)
 }

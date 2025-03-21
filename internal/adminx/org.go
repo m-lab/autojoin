@@ -44,7 +44,7 @@ type CRM interface {
 // OrganizationManager defines the interface for managing organizations and their API keys
 type OrganizationManager interface {
 	CreateOrganization(ctx context.Context, name, email string) error
-	CreateAPIKey(ctx context.Context, org string) (string, error)
+	CreateAPIKeyWithValue(ctx context.Context, org, value string) (string, error)
 	GetAPIKeys(ctx context.Context, org string) ([]string, error)
 }
 
@@ -252,7 +252,6 @@ func BindingIsEqual(a *cloudresourcemanager.Binding, b *cloudresourcemanager.Bin
 	return a.Role == b.Role
 }
 
-// CreateAPIKey creates a new API key for this organization.
-func (o *Org) CreateAPIKey(ctx context.Context, org string) (string, error) {
-	return o.keys.CreateKey(ctx, org)
+func (o *Org) CreateAPIKeyWithValue(ctx context.Context, org, val string) (string, error) {
+	return o.orgm.CreateAPIKeyWithValue(ctx, org, val)
 }
