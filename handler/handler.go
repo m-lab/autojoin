@@ -32,7 +32,7 @@ var (
 	errLocationNotFound = errors.New("location not found")
 	errLocationFormat   = errors.New("location could not be parsed")
 
-	validName = regexp.MustCompile(`[a-z0-9]+`)
+	validName = regexp.MustCompile(`[a-zA-Z0-9]+`)
 )
 
 // Server maintains shared state for the server.
