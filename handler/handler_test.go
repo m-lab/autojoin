@@ -128,10 +128,14 @@ func (f *fakeDatastoreOrgManager) GetOrganization(ctx context.Context, orgName s
 		// Return default if not specified
 		return &adminx.Organization{
 			Name:                  orgName,
-			ProbabilityMultiplier: 1.0,
+			ProbabilityMultiplier: float64Ptr(1.0),
 		}, nil
 	}
 	return f.org, nil
+}
+
+func float64Ptr(v float64) *float64 {
+	return &v
 }
 
 func TestServer_Lookup(t *testing.T) {
@@ -350,18 +354,20 @@ func TestServer_Register(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		Iata       IataFinder
-		Maxmind    MaxmindFinder
-		ASN        ASNFinder
-		DNS        dnsiface.Service
-		Tracker    DNSTracker
-		sm         ServiceAccountSecretManager
-		params     string
-		org        string
-		minVersion string
-		wantName   string
-		wantCode   int
+		name            string
+		Iata            IataFinder
+		Maxmind         MaxmindFinder
+		ASN             ASNFinder
+		DNS             dnsiface.Service
+		Tracker         DNSTracker
+		dsm             Datastore
+		sm              ServiceAccountSecretManager
+		params          string
+		org             string
+		minVersion      string
+		wantName        string
+		wantCode        int
+		wantProbability float64
 	}{
 		{
 			name:    "success",
@@ -372,12 +378,14 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			minVersion: defaultMinVersion,
-			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
-			wantCode:   http.StatusOK,
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0,
 		},
 		{
 			name:    "success-probability-invalid-ports-invalid",
@@ -388,12 +396,14 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			minVersion: defaultMinVersion,
-			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
-			wantCode:   http.StatusOK,
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0,
 		},
 		{
 			name:       "error-service-empty",
@@ -460,6 +470,7 @@ func TestServer_Register(t *testing.T) {
 			Maxmind: maxmind,
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{getErr: errors.New("fake get error")},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				err: fmt.Errorf("fake key load error"),
 			},
@@ -474,6 +485,7 @@ func TestServer_Register(t *testing.T) {
 			Maxmind: maxmind,
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{getErr: errors.New("fake get error")},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
@@ -489,6 +501,7 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{updateErr: errors.New("update error")},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
@@ -505,12 +518,14 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			minVersion: "1.0.0",
-			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
-			wantCode:   http.StatusOK,
+			minVersion:      "1.0.0",
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0,
 		},
 		{
 			name:    "success-no-version",
@@ -521,12 +536,14 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			minVersion: defaultMinVersion,
-			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
-			wantCode:   http.StatusOK,
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0,
 		},
 		{
 			name:    "success-newer-version",
@@ -537,12 +554,14 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
-			minVersion: "1.0.0",
-			wantName:   "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
-			wantCode:   http.StatusOK,
+			minVersion:      "1.0.0",
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0,
 		},
 		{
 			name:    "error-invalid-version-format",
@@ -553,6 +572,7 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
@@ -568,6 +588,7 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
@@ -583,17 +604,84 @@ func TestServer_Register(t *testing.T) {
 			ASN:     fakeASN,
 			DNS:     &fakeDNS{},
 			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
 			sm: &fakeSecretManager{
 				key: "fake key data",
 			},
 			minVersion: "1.0.0",
 			wantCode:   http.StatusForbidden,
 		},
+		{
+			name:    "success-with-org-multiplier",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			dsm: &fakeDatastoreOrgManager{
+				org: &adminx.Organization{
+					Name:                  "bar",
+					ProbabilityMultiplier: float64Ptr(2.0),
+				},
+			},
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0, // 0.5 * 2.0
+		},
+		{
+			name:    "success-with-nil-org-multiplier",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			dsm: &fakeDatastoreOrgManager{
+				org: &adminx.Organization{
+					Name:                  "bar",
+					ProbabilityMultiplier: nil,
+				},
+			},
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 0.5,
+		},
+		{
+			name:    "success-with-datastore-error",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=0.5&ports=9990&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			dsm: &fakeDatastoreOrgManager{
+				err: errors.New("datastore error"),
+			},
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 0.5,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, tt.sm, &fakeDatastoreOrgManager{}, tt.minVersion)
+			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, tt.sm, tt.dsm, tt.minVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -627,6 +715,11 @@ func TestServer_Register(t *testing.T) {
 
 			if _, err := host.Parse(resp.Registration.Hostname); err != nil {
 				t.Errorf("Register() returned unparsable hostname; got %v, want nil", err)
+			}
+
+			if resp.Registration.Heartbeat.Probability != tt.wantProbability {
+				t.Errorf("Register() returned wrong probability; got %f, want %f",
+					resp.Registration.Heartbeat.Probability, tt.wantProbability)
 			}
 
 		})
