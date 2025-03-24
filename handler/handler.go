@@ -294,8 +294,8 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	// Get the organization probability multiplier.
 	orgEntity, err := s.dsm.GetOrganization(req.Context(), param.Org)
 	orgMultiplier := 1.0
-	if err == nil && orgEntity != nil {
-		orgMultiplier = orgEntity.ProbabilityMultiplier
+	if err == nil && orgEntity != nil && orgEntity.ProbabilityMultiplier != nil {
+		orgMultiplier = *orgEntity.ProbabilityMultiplier
 	}
 	// Assign the probability by multiplying the org multiplier with the
 	// probability requested by the client.
