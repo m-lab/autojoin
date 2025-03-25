@@ -31,7 +31,7 @@ type Organization struct {
 	Name                  string    `datastore:"name"`
 	Email                 string    `datastore:"email"`
 	CreatedAt             time.Time `datastore:"created_at"`
-	ProbabilityMultiplier float64   `datastore:"probability_multiplier"`
+	ProbabilityMultiplier *float64  `datastore:"probability_multiplier"`
 }
 
 // APIKey represents a Datastore entity for storing API key metadata.
@@ -60,12 +60,12 @@ func NewDatastoreManager(client DatastoreClient, project string) *DatastoreOrgMa
 func (d *DatastoreOrgManager) CreateOrganization(ctx context.Context, name, email string) error {
 	key := datastore.NameKey(OrgKind, name, nil)
 	key.Namespace = d.namespace
-
+	prob := 1.0
 	org := &Organization{
 		Name:                  name,
 		Email:                 email,
 		CreatedAt:             time.Now().UTC(),
-		ProbabilityMultiplier: 1.0,
+		ProbabilityMultiplier: &prob,
 	}
 
 	_, err := d.client.Put(ctx, key, org)
