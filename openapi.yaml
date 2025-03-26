@@ -20,6 +20,14 @@ info:
   title: "M-Lab Autojoin API ({{DEPLOYMENT}})"
   version: "0.1.0"
 host: "autojoin-dot-{{PROJECT}}.appspot.com"
+securityDefinitions:
+  jwt:
+    type: oauth2
+    authorizationUrl: ""
+    flow: implicit
+    x-google-issuer: "token-exchange-service"
+    x-google-jwks_uri: "https://token-exchange-hjqqgmbpyq-oa.a.run.app/.well-known/jwks.json"
+    x-google-audiences: "token-exchange-service"
 
 consumes:
   - "application/json"
@@ -32,6 +40,8 @@ paths:
   # DOES NOT require an API key.
   "/autojoin/v0/lookup":
     get:
+      security:
+        - jwt: []
       description: |-
         Find the nearest IATA location based on user parameters.
 
