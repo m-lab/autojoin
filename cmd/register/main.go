@@ -129,7 +129,7 @@ func register() {
 	token, err := exchangeAPIKeyForJWT(*apiKey, "autojoin")
 	rtx.Must(err, "Failed to exchange API key for JWT")
 
-	// 2. Prepare the register request (no api_key in query).
+	// 2. Prepare the register request.
 	registerURL, err := url.Parse(*endpoint)
 	rtx.Must(err, "Failed to parse autojoin service URL")
 	q := registerURL.Query()
