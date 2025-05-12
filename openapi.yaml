@@ -49,8 +49,6 @@ paths:
 
         This resource requires JWT authentication.
       operationId: "autojoin-v0-lookup"
-      security:
-        - jwks: []
       parameters:
         - in: query
           name: country
@@ -84,6 +82,8 @@ paths:
 
         This resource requires an API key.
       operationId: "autojoin-v0-node-register"
+      security:
+        - jwks: []
       parameters:
         - in: query
           name: api_key
@@ -127,6 +127,8 @@ paths:
 
         This resource requires an API key.
       operationId: "autojoin-v0-node-delete"
+      security:
+        - jwks: []
       parameters:
         - in: query
           name: api_key

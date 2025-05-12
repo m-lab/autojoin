@@ -25,10 +25,13 @@ type APIKeyValidator interface {
 
 // WithAPIKeyValidation creates middleware that validates API keys and adds
 // org info to context.
+//
+// Note: This supports the migration to JWT tokens. If a JWT is provided, the
+// organization name is extracted from its claim. Otherwise, the legacy API key
+// is validated in Datastore and the associated organization name is retrieved.
 func WithAPIKeyValidation(validator APIKeyValidator, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// First, check for the Authorization header. If available, just extract
-		// the "org" claim and use it.
+		// First, check for the Authorization header.
 		authHeader := r.Header.Get("Authorization")
 		if strings.HasPrefix(authHeader, "Bearer ") {
 			tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
