@@ -39,6 +39,10 @@ securityDefinitions:
     # x-google-audiences are the audiences JWTs are allowed to target.
     # The value should be the backend service name, which is derived from the 'host' field.
     x-google-audiences: "autojoin"
+  legacy_api_key:
+    type: "apiKey"
+    name: "api_key"
+    in: "query"
 
 paths:
   # Requires JWT authentication.
@@ -84,12 +88,8 @@ paths:
       operationId: "autojoin-v0-node-register"
       security:
         - jwks: []
+        - legacy_api_key: []
       parameters:
-        - in: query
-          name: api_key
-          type: string
-          required: true
-          description: API key.
         - in: query
           name: service
           type: string
@@ -129,12 +129,8 @@ paths:
       operationId: "autojoin-v0-node-delete"
       security:
         - jwks: []
+        - legacy_api_key: []
       parameters:
-        - in: query
-          name: api_key
-          type: string
-          required: true
-          description: API key.
         - in: query
           name: hostname
           type: string
