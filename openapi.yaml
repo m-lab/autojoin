@@ -28,15 +28,29 @@ produces:
 schemes:
   - "https"
 
+securityDefinitions:
+  jwks:
+    authorizationUrl: "" # Required for swagger 2.0 oauth2, but not used by ESPv2/Apigee
+    flow: "implicit" # Required for swagger 2.0 oauth2, but not used by ESPv2/Apigee
+    type: "oauth2"
+    # x-google-jwks_uri and x-google-issuer identify the service that issues JWTs.
+    x-google-issuer: "token-exchange"
+    x-google-jwks_uri: "https://token-exchange.mlab-sandbox.measurementlab.net/.well-known/jwks"
+    # x-google-audiences are the audiences JWTs are allowed to target.
+    # The value should be the backend service name, which is derived from the 'host' field.
+    x-google-audiences: "autojoin"
+
 paths:
-  # DOES NOT require an API key.
+  # Requires JWT authentication.
   "/autojoin/v0/lookup":
     get:
       description: |-
         Find the nearest IATA location based on user parameters.
 
-        This resource does not require an API key.
+        This resource requires JWT authentication.
       operationId: "autojoin-v0-lookup"
+      security:
+        - jwks: []
       parameters:
         - in: query
           name: country
