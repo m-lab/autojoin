@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -25,18 +26,20 @@ import (
 )
 
 const (
-	registerEndpoint       = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register"
-	heartbeatFilename      = "registration.json"
-	annotationFilename     = "annotation.json"
-	serviceAccountFilename = "service-account-autojoin.json"
-	hostnameFilename       = "hostname"
+	defaultRegisterEndpoint = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register"
+	defaultTokenEndpoint    = "https://token-exchange.mlab-sandbox.measurementlab.net/token"
+	heartbeatFilename       = "registration.json"
+	annotationFilename      = "annotation.json"
+	serviceAccountFilename  = "service-account-autojoin.json"
+	hostnameFilename        = "hostname"
 )
 
 var (
 	// Replaced by the linker with the current version at build time.
 	Version = "0.0.0"
 
-	endpoint    = flag.String("endpoint", registerEndpoint, "Endpoint of the autojoin service")
+	endpoint    = flag.String("endpoint", defaultRegisterEndpoint, "Endpoint of the autojoin service")
+	tkEndpoint  = flag.String("token-endpoint", defaultTokenEndpoint, "Token-exchange endpoint")
 	apiKey      = flag.String("key", "", "API key for the autojoin service")
 	service     = flag.String("service", "ndt", "Service name to register with the autojoin service")
 	iata        = flagx.StringFile{}
@@ -122,11 +125,14 @@ func main() {
 // disk. If the node is registered already, this is effectively a no-op for the
 // autojoin API and will just touch the output files' last-modified time.
 func register() {
-	// Make a HTTP call to the autojoin service to register this node.
+	// 1. Exchange API key for JWT.
+	token, err := exchangeAPIKeyForJWT(*apiKey, "autojoin")
+	rtx.Must(err, "Failed to exchange API key for JWT")
+
+	// 2. Prepare the register request (no api_key in query).
 	registerURL, err := url.Parse(*endpoint)
 	rtx.Must(err, "Failed to parse autojoin service URL")
 	q := registerURL.Query()
-	q.Add("api_key", *apiKey)
 	q.Add("service", *service)
 	q.Add("iata", iata.Value)
 	q.Add("ipv4", ipv4.Value)
@@ -142,16 +148,22 @@ func register() {
 	registerURL.RawQuery = q.Encode()
 
 	log.Printf("Registering with %s", registerURL)
-	resp, err := ipv4HTTPClient().Post(registerURL.String(), "application/json", nil)
+	req, err := http.NewRequest("POST", registerURL.String(), nil)
+	rtx.Must(err, "Failed to create register request")
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := ipv4HTTPClient().Do(req)
 	rtx.Must(err, "POST autojoin/v0/node/register failed")
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		panic("Failed to register with autojoin service")
-	}
-
 	body, err := io.ReadAll(resp.Body)
 	rtx.Must(err, "Failed to read response body")
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("Failed to register with autojoin service:\n%s\n", body)
+		os.Exit(1)
+	}
 
 	var r v0.RegisterResponse
 	json.Unmarshal(body, &r)
@@ -188,6 +200,43 @@ func register() {
 
 	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
 	registerSuccess.Store(true)
+}
+
+// exchangeAPIKeyForJWT exchanges an API key for a JWT using the token-exchange service.
+func exchangeAPIKeyForJWT(apiKey, audience string) (string, error) {
+	payload := map[string]string{
+		"api_key": apiKey,
+	}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest("POST", *tkEndpoint, bytes.NewReader(payloadBytes))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("token exchange failed: %s", string(b))
+	}
+	var result struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", err
+	}
+	if result.Token == "" {
+		return "", fmt.Errorf("token exchange returned empty token")
+	}
+	fmt.Printf("Token exchange successful - Token: %s\n", result.Token)
+	return result.Token, nil
 }
 
 // ipv4HTTPClient returns an HTTP client that always uses IPv4.
