@@ -41,7 +41,10 @@ securityDefinitions:
     x-google-audiences: "autojoin"
   legacy_api_key:
     type: "apiKey"
-    name: "api_key"
+    description: |-
+      An API key for your organization, restricted to the Autojoin API. API keys
+      are allocated by M-Lab for use by a registered organization.
+    name: "key"
     in: "query"
 
 paths:
