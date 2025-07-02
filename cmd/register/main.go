@@ -26,19 +26,19 @@ import (
 )
 
 const (
-	defaultRegisterEndpoint = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register"
-	defaultTokenEndpoint    = "https://token-exchange.mlab-sandbox.measurementlab.net/token"
-	heartbeatFilename       = "registration.json"
-	annotationFilename      = "annotation.json"
-	serviceAccountFilename  = "service-account-autojoin.json"
-	hostnameFilename        = "hostname"
+	defaultRegisterJWTEndpoint = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register-jwt"
+	defaultTokenEndpoint       = "https://auth.mlab-sandbox.measurementlab.net/token"
+	heartbeatFilename          = "registration.json"
+	annotationFilename         = "annotation.json"
+	serviceAccountFilename     = "service-account-autojoin.json"
+	hostnameFilename           = "hostname"
 )
 
 var (
 	// Replaced by the linker with the current version at build time.
 	Version = "0.0.0"
 
-	endpoint    = flag.String("endpoint", defaultRegisterEndpoint, "Endpoint of the autojoin service")
+	endpoint    = flag.String("endpoint", defaultRegisterJWTEndpoint, "Endpoint of the autojoin service")
 	tkEndpoint  = flag.String("token-endpoint", defaultTokenEndpoint, "Token-exchange endpoint")
 	apiKey      = flag.String("key", "", "API key for the autojoin service")
 	service     = flag.String("service", "ndt", "Service name to register with the autojoin service")
@@ -126,7 +126,7 @@ func main() {
 // autojoin API and will just touch the output files' last-modified time.
 func register() {
 	// 1. Exchange API key for JWT.
-	token, err := exchangeAPIKeyForJWT(*apiKey, "autojoin")
+	token, err := exchangeAPIKeyForJWT(*apiKey)
 	rtx.Must(err, "Failed to exchange API key for JWT")
 
 	// 2. Prepare the register request.
@@ -203,7 +203,7 @@ func register() {
 }
 
 // exchangeAPIKeyForJWT exchanges an API key for a JWT using the token-exchange service.
-func exchangeAPIKeyForJWT(apiKey, audience string) (string, error) {
+func exchangeAPIKeyForJWT(apiKey string) (string, error) {
 	payload := map[string]string{
 		"api_key": apiKey,
 	}

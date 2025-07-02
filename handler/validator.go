@@ -25,35 +25,9 @@ type APIKeyValidator interface {
 
 // WithAPIKeyValidation creates middleware that validates API keys and adds
 // org info to context.
-//
-// Note: This supports the migration to JWT tokens. If a JWT is provided, the
-// organization name is extracted from its claim. Otherwise, the legacy API key
-// is validated in Datastore and the associated organization name is retrieved.
 func WithAPIKeyValidation(validator APIKeyValidator, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// First, check for the Authorization header.
-		authHeader := r.Header.Get("Authorization")
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
-			org, err := validateJWTAndExtractOrg(tokenString)
-			if err != nil || org == "" {
-				resp := v0.RegisterResponse{
-					Error: &v2.Error{
-						Type:   "auth.invalid_token",
-						Title:  "Invalid or missing org claim in JWT",
-						Status: http.StatusUnauthorized,
-					},
-				}
-				w.WriteHeader(resp.Error.Status)
-				writeResponse(w, resp)
-				return
-			}
-			ctx := context.WithValue(r.Context(), orgContextKey, org)
-			next.ServeHTTP(w, r.WithContext(ctx))
-			return
-		}
-
-		// Fallback: Use the API key from the query string, extract the organization
+		// Use the API key from the query string, extract the organization
 		// from Datastore.
 		apiKey := r.URL.Query().Get("api_key")
 		if apiKey == "" {
@@ -102,4 +76,43 @@ func validateJWTAndExtractOrg(tokenString string) (string, error) {
 		}
 	}
 	return "", errors.New("org claim not found")
+}
+
+// WithJWTValidation creates middleware that validates JWT tokens only and adds
+// org info to context. This is used for the /register-jwt endpoint.
+func WithJWTValidation(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Check for the Authorization header.
+		authHeader := r.Header.Get("Authorization")
+		if !strings.HasPrefix(authHeader, "Bearer ") {
+			resp := v0.RegisterResponse{
+				Error: &v2.Error{
+					Type:   "auth.missing_token",
+					Title:  "JWT token is required in Authorization header",
+					Status: http.StatusUnauthorized,
+				},
+			}
+			w.WriteHeader(resp.Error.Status)
+			writeResponse(w, resp)
+			return
+		}
+
+		tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+		org, err := validateJWTAndExtractOrg(tokenString)
+		if err != nil || org == "" {
+			resp := v0.RegisterResponse{
+				Error: &v2.Error{
+					Type:   "auth.invalid_token",
+					Title:  "Invalid or missing org claim in JWT",
+					Status: http.StatusUnauthorized,
+				},
+			}
+			w.WriteHeader(resp.Error.Status)
+			writeResponse(w, resp)
+			return
+		}
+
+		ctx := context.WithValue(r.Context(), orgContextKey, org)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	}
 }
