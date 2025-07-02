@@ -216,7 +216,6 @@ paths:
       operationId: "autojoin-v0-node-delete"
       security:
         - jwks: []
-        - legacy_api_key: []
       parameters:
         - in: query
           name: hostname
