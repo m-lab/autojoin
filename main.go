@@ -157,7 +157,7 @@ func main() {
 
 	// JWT-only registration endpoint
 	mux.HandleFunc("/autojoin/v0/node/register/token", promhttp.InstrumentHandlerDuration(
-		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/register-token"}),
+		metrics.RequestHandlerDuration.MustCurryWith(prometheus.Labels{"path": "/autojoin/v0/node/register/token"}),
 		handler.WithJWTValidation(s.Register)))
 
 	mux.HandleFunc("/autojoin/v0/node/delete", promhttp.InstrumentHandlerDuration(
