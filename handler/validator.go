@@ -64,8 +64,9 @@ func WithAPIKeyValidation(validator APIKeyValidator, next http.HandlerFunc) http
 
 // validateJWTAndExtractOrg validates the JWT and extracts the "org" claim.
 func validateJWTAndExtractOrg(tokenString string) (string, error) {
-	// Note: This JWT *must* be verified previously in the stack, e.g. via openapi
-	// security definitions.
+	// Note: The signature is *not* verified here. This token *must* be verified
+	// by Google Cloud Endpoints or API Gateway. If the provided token is invalid,
+	// this API won't even see this request.
 	token, _, err := new(jwt.Parser).ParseUnverified(tokenString, jwt.MapClaims{})
 	if err != nil {
 		return "", err
