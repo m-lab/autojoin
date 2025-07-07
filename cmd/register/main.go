@@ -208,9 +208,8 @@ func exchangeAPIKeyForJWT(apiKey string) (string, error) {
 		"api_key": apiKey,
 	}
 	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
+	// This is basically impossible - the struct above is always marshallable.
+	rtx.Must(err, "Failed to marshal payload")
 	req, err := http.NewRequest("POST", *tkEndpoint, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return "", err
