@@ -140,13 +140,13 @@ paths:
           description: Registration was successful.
       tags:
         - public
-  "/autojoin/v0/node/register-jwt":
+  "/autojoin/v0/node/register/token":
     post:
       description: |-
         Register a service with M-Lab.
 
         This resource requires JWT authentication.
-      operationId: "autojoin-v0-node-register-jwt"
+      operationId: "autojoin-v0-node-register-token"
       security:
         - jwks: []
       parameters:
