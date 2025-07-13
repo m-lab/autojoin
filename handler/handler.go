@@ -32,7 +32,9 @@ var (
 	errLocationNotFound = errors.New("location not found")
 	errLocationFormat   = errors.New("location could not be parsed")
 
-	validName = regexp.MustCompile(`[a-zA-Z0-9]+`)
+	// Regex patterns with proper anchoring for security
+	validName   = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
+	validUplink = regexp.MustCompile(`^[0-9]+g$`)
 )
 
 // Server maintains shared state for the server.
@@ -540,10 +542,9 @@ func isValidType(s string) bool {
 }
 
 func isValidUplink(s string) bool {
-	// Minimally make sure the uplink speed specification looks like some
-	// numbers followed by "g".
-	matched, _ := regexp.MatchString("[0-9]+g", s)
-	return matched
+	// Validate uplink speed specification: numbers followed by "g".
+	// Using anchored regex to prevent injection attacks.
+	return validUplink.MatchString(s)
 }
 
 func (s *Server) getCountry(req *http.Request) (string, error) {
@@ -643,10 +644,15 @@ func getPorts(req *http.Request) []string {
 	result := []string{}
 	ports := req.URL.Query()["ports"]
 	for _, port := range ports {
-		// Verify this is a valid number.
-		_, err := strconv.ParseInt(port, 10, 64)
+		// Verify this is a valid port number in the valid range.
+		portNum, err := strconv.ParseInt(port, 10, 64)
 		if err != nil {
-			// Skip if not.
+			// Skip if not a valid number.
+			continue
+		}
+		// Validate port range (1-65535)
+		if portNum < 1 || portNum > 65535 {
+			// Skip ports outside valid range.
 			continue
 		}
 		result = append(result, port)
