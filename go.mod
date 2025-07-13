@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/secretmanager v1.13.5
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/go-test/deep v1.1.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/gomodule/redigo v1.8.8
 	github.com/googleapis/gax-go v1.0.3
 	github.com/googleapis/gax-go/v2 v2.13.0
