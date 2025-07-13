@@ -27,7 +27,7 @@ import (
 
 const (
 	defaultRegisterJWTEndpoint = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register/token"
-	defaultTokenEndpoint       = "https://auth.mlab-sandbox.measurementlab.net/token"
+	defaultTokenEndpoint       = "https://auth.mlab-sandbox.measurementlab.net/v0/token/autojoin"
 	heartbeatFilename          = "registration.json"
 	annotationFilename         = "annotation.json"
 	serviceAccountFilename     = "service-account-autojoin.json"
