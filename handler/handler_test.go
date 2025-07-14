@@ -915,3 +915,92 @@ func TestServer_List(t *testing.T) {
 		})
 	}
 }
+
+// TestIsValidName tests basic validation and security improvements
+func TestIsValidName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		// Valid cases
+		{"test123", true},
+		{"abc", true},
+		
+		// Invalid cases - should fail with anchored regex
+		{"", false},
+		{"toolongname", false}, // > 10 chars
+		{"test space", false},  // space
+		{"test!", false},       // special char
+		{"abc!@#def", false},   // mixed valid/invalid (would pass unanchored)
+	}
+
+	for _, tt := range tests {
+		result := isValidName(tt.input)
+		if result != tt.expected {
+			t.Errorf("isValidName(%q) = %v, want %v", tt.input, result, tt.expected)
+		}
+	}
+}
+
+// TestIsValidUplink tests basic validation and security improvements  
+func TestIsValidUplink(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		// Valid cases
+		{"10g", true},
+		{"100g", true},
+		
+		// Invalid cases - should fail with anchored regex
+		{"", false},
+		{"100", false},              // no 'g'
+		{"100g malicious", false},   // extra content (would pass unanchored)
+		{"malicious100g", false},    // prefix content (would pass unanchored)
+		{"100 g", false},            // space
+	}
+
+	for _, tt := range tests {
+		result := isValidUplink(tt.input)
+		if result != tt.expected {
+			t.Errorf("isValidUplink(%q) = %v, want %v", tt.input, result, tt.expected)
+		}
+	}
+}
+
+// TestGetPorts tests port range validation
+func TestGetPorts(t *testing.T) {
+	tests := []struct {
+		name     string
+		ports    []string
+		expected []string
+	}{
+		{"valid-ports", []string{"80", "443"}, []string{"80", "443"}},
+		{"edge-ports", []string{"1", "65535"}, []string{"1", "65535"}},
+		{"invalid-range", []string{"0", "65536"}, []string{"9990"}}, // out of range
+		{"mixed", []string{"80", "0", "443"}, []string{"80", "443"}}, // filter invalid
+		{"no-ports", []string{}, []string{"9990"}}, // default
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/?"+buildPortQuery(tt.ports), nil)
+			result := getPorts(req)
+			
+			if len(result) != len(tt.expected) {
+				t.Errorf("got %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func buildPortQuery(ports []string) string {
+	if len(ports) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, port := range ports {
+		parts = append(parts, "ports="+port)
+	}
+	return strings.Join(parts, "&")
+}

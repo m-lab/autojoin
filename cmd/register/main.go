@@ -234,7 +234,7 @@ func exchangeAPIKeyForJWT(apiKey string) (string, error) {
 	if result.Token == "" {
 		return "", fmt.Errorf("token exchange returned empty token")
 	}
-	fmt.Printf("Token exchange successful - Token: %s\n", result.Token)
+	log.Println("Token exchange successful")
 	return result.Token, nil
 }
 
