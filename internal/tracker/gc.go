@@ -116,9 +116,10 @@ func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, [][]string, error
 	values, err := gc.GetAll()
 
 	if err != nil {
-		// TODO(rd): count errors with a Prometheus metric.
+		metrics.GarbageCollectorOperations.WithLabelValues("memorystore_getall", "error").Inc()
 		return nil, nil, err
 	}
+	metrics.GarbageCollectorOperations.WithLabelValues("memorystore_getall", "success").Inc()
 
 	// Iterate over values and check if they are expired.
 	for k, v := range values {
@@ -131,25 +132,29 @@ func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, [][]string, error
 			name, err := host.Parse(k)
 			if err != nil {
 				log.Printf("Failed to parse hostname %s: %v", k, err)
+				metrics.GarbageCollectorOperations.WithLabelValues("hostname_parse", "error").Inc()
 				continue
-				// TODO(rd): count errors with a Prometheus metric
 			}
+			metrics.GarbageCollectorOperations.WithLabelValues("hostname_parse", "success").Inc()
 
 			m := dnsx.NewManager(gc.dns, gc.project, dnsname.OrgZone(name.Org, gc.project))
 			_, err = m.Delete(context.Background(), name.StringAll()+".")
 			if err != nil {
 				log.Printf("Failed to delete DNS entry for %s: %v", name, err)
+				metrics.GarbageCollectorOperations.WithLabelValues("dns_delete", "error").Inc()
 				// If the deletion fails, we do not want to remove the entry
 				// from memorystore so the deletion can be retried next time.
 				continue
-				// TODO(rd): count errors with a Prometheus metric
 			}
+			metrics.GarbageCollectorOperations.WithLabelValues("dns_delete", "success").Inc()
 
 			// Remove expired hostname from memorystore.
 			err = gc.Delete(k)
 			if err != nil {
 				log.Printf("Failed to delete %s: %v", k, err)
-				// TODO(rd): count errors with a Prometheus metric
+				metrics.GarbageCollectorOperations.WithLabelValues("memorystore_delete", "error").Inc()
+			} else {
+				metrics.GarbageCollectorOperations.WithLabelValues("memorystore_delete", "success").Inc()
 			}
 		} else {
 			nodes = append(nodes, k)

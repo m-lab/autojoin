@@ -26,4 +26,13 @@ var (
 		},
 		[]string{"path", "code"},
 	)
+
+	// GarbageCollectorOperations counts garbage collection operations by type and result.
+	GarbageCollectorOperations = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "autojoin_gc_operations_total",
+			Help: "Total number of garbage collector operations by type and result",
+		},
+		[]string{"operation", "result"},
+	)
 )
