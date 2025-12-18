@@ -435,6 +435,7 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 
 	org := req.URL.Query().Get("org")
 	format := req.URL.Query().Get("format")
+	service := req.URL.Query().Get("service")
 	sites := map[string]bool{}
 
 	// Create a prometheus StaticConfig for each known host.
@@ -445,6 +446,10 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		}
 		if org != "" && org != h.Org {
 			// Skip hosts that are not part of the given org.
+			continue
+		}
+		if service != "" && !strings.HasPrefix(service, h.Service) {
+			// Skip hosts that are not part of the requested service
 			continue
 		}
 		sites[h.Site] = true
@@ -467,8 +472,8 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 				"managed":    "none",
 				"org":        h.Org,
 			}
-			if req.URL.Query().Get("service") != "" {
-				labels["service"] = req.URL.Query().Get("service")
+			if service != "" {
+				labels["service"] = service
 			}
 			// We create one record per host to add a unique "machine" label to each one.
 			configs = append(configs, discovery.StaticConfig{
