@@ -185,10 +185,10 @@ func TestServer_Lookup(t *testing.T) {
 			maxmind: &fakeMaxmind{
 				city: &geoip2.City{
 					Country: struct {
+						Names             map[string]string `maxminddb:"names"`
+						IsoCode           string            `maxminddb:"iso_code"`
 						GeoNameID         uint              `maxminddb:"geoname_id"`
 						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						IsoCode           string            `maxminddb:"iso_code"`
-						Names             map[string]string `maxminddb:"names"`
 					}{
 						IsoCode: "US",
 					},
@@ -236,11 +236,11 @@ func TestServer_Lookup(t *testing.T) {
 			maxmind: &fakeMaxmind{
 				city: &geoip2.City{
 					Location: struct {
-						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
+						TimeZone       string  `maxminddb:"time_zone"`
 						Latitude       float64 `maxminddb:"latitude"`
 						Longitude      float64 `maxminddb:"longitude"`
 						MetroCode      uint    `maxminddb:"metro_code"`
-						TimeZone       string  `maxminddb:"time_zone"`
+						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
 					}{
 						Latitude:  40,
 						Longitude: -71,
@@ -319,27 +319,27 @@ func TestServer_Register(t *testing.T) {
 		// NOTE: this ridiculous declaration is needed due to anonymous structs in the geoip2 package.
 		city: &geoip2.City{
 			Country: struct {
+				Names             map[string]string `maxminddb:"names"`
+				IsoCode           string            `maxminddb:"iso_code"`
 				GeoNameID         uint              `maxminddb:"geoname_id"`
 				IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-				IsoCode           string            `maxminddb:"iso_code"`
-				Names             map[string]string `maxminddb:"names"`
 			}{
 				IsoCode: "US",
 			},
 			Subdivisions: []struct {
-				GeoNameID uint              `maxminddb:"geoname_id"`
-				IsoCode   string            `maxminddb:"iso_code"`
 				Names     map[string]string `maxminddb:"names"`
+				IsoCode   string            `maxminddb:"iso_code"`
+				GeoNameID uint              `maxminddb:"geoname_id"`
 			}{
 				{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
 				{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
 			},
 			Location: struct {
-				AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
+				TimeZone       string  `maxminddb:"time_zone"`
 				Latitude       float64 `maxminddb:"latitude"`
 				Longitude      float64 `maxminddb:"longitude"`
 				MetroCode      uint    `maxminddb:"metro_code"`
-				TimeZone       string  `maxminddb:"time_zone"`
+				AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
 			}{
 				Latitude:  41,
 				Longitude: -73,
