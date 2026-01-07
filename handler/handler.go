@@ -448,6 +448,15 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 			// Skip hosts that are not part of the given org.
 			continue
 		}
+		// The Autojoin API provides Prometheus with a target list for
+		// blackbox-exporter and script-exporter. When it was first designed,
+		// the intention was that it would _only_ support ndt7, so it was
+		// appropriate to return every single machine as a target for ndt7
+		// monitoring. However, as we contemplate and experiment with creating
+		// BYOS for other experiments, we don't want non-ndt7 target returned
+		// for ndt7 monitoring. This just checks to make sure that the service
+		// parameter of the request to the Autojoin API actually matches the
+		// service embedded in the machine name.
 		if service != "" && !strings.HasPrefix(service, h.Service) {
 			// Skip hosts that are not part of the requested service
 			continue
