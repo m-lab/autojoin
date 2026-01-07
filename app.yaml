@@ -4,7 +4,7 @@ service: autojoin
 
 runtime_config:
   operating_system: "ubuntu22"
-  runtime_version: "1.21"
+  runtime_version: "1.23"
 
 endpoints_api_service:
   name: autojoin-dot-{{PROJECT_ID}}.appspot.com

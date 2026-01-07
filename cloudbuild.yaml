@@ -7,13 +7,16 @@ options:
 
 steps:
 # Run unit tests for environment.
-- name: gcr.io/$PROJECT_ID/golang-cbif:1.20
+- name: golang:1.23-alpine
+  entrypoint: sh
   args:
-  - go version
-  - go get -v -t ./...
-  - go vet ./...
-  - go test ./... -race
-  - go test -v ./...
+  - -c
+  - |
+    go version
+    go get -v -t ./...
+    go vet ./...
+    go test ./... -race
+    go test -v ./...
 
 # Deployment of API.
 - name: gcr.io/$PROJECT_ID/gcloud-jsonnet-cbif:1.1
