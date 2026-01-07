@@ -10,7 +10,6 @@ require (
 	github.com/go-test/deep v1.1.1
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/gomodule/redigo v1.8.8
-	github.com/googleapis/gax-go v2.0.2+incompatible
 	github.com/googleapis/gax-go/v2 v2.13.0
 	github.com/m-lab/gcp-service-discovery v1.5.1
 	github.com/m-lab/go v0.1.75

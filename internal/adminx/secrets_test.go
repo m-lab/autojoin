@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
-	"github.com/googleapis/gax-go"
+	"github.com/googleapis/gax-go/v2"
 	"google.golang.org/api/iam/v1"
 )
 
