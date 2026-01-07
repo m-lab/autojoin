@@ -435,6 +435,7 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 
 	org := req.URL.Query().Get("org")
 	format := req.URL.Query().Get("format")
+	service := req.URL.Query().Get("service")
 	sites := map[string]bool{}
 
 	// Create a prometheus StaticConfig for each known host.
@@ -445,6 +446,19 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 		}
 		if org != "" && org != h.Org {
 			// Skip hosts that are not part of the given org.
+			continue
+		}
+		// The Autojoin API provides Prometheus with a target list for
+		// blackbox-exporter and script-exporter. When it was first designed,
+		// the intention was that it would _only_ support ndt7, so it was
+		// appropriate to return every single machine as a target for ndt7
+		// monitoring. However, as we contemplate and experiment with creating
+		// BYOS for other experiments, we don't want non-ndt7 target returned
+		// for ndt7 monitoring. This just checks to make sure that the service
+		// parameter of the request to the Autojoin API actually matches the
+		// service embedded in the machine name.
+		if service != "" && !strings.HasPrefix(service, h.Service) {
+			// Skip hosts that are not part of the requested service
 			continue
 		}
 		sites[h.Site] = true
@@ -467,8 +481,8 @@ func (s *Server) List(rw http.ResponseWriter, req *http.Request) {
 				"managed":    "none",
 				"org":        h.Org,
 			}
-			if req.URL.Query().Get("service") != "" {
-				labels["service"] = req.URL.Query().Get("service")
+			if service != "" {
+				labels["service"] = service
 			}
 			// We create one record per host to add a unique "machine" label to each one.
 			configs = append(configs, discovery.StaticConfig{
