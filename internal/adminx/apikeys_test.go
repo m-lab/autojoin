@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"cloud.google.com/go/apikeys/apiv2/apikeyspb"
-	"github.com/googleapis/gax-go"
+	"github.com/googleapis/gax-go/v2"
 )
 
 type fakeKeys struct {

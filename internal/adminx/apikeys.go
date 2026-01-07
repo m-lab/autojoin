@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"cloud.google.com/go/apikeys/apiv2/apikeyspb"
-	"github.com/googleapis/gax-go"
+	"github.com/googleapis/gax-go/v2"
 )
 
 // KeysClient defines the interface used by the APIKeys type to allocate API keys.

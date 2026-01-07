@@ -5,7 +5,7 @@ import (
 
 	apikeys "cloud.google.com/go/apikeys/apiv2"
 	"cloud.google.com/go/apikeys/apiv2/apikeyspb"
-	"github.com/googleapis/gax-go"
+	"github.com/googleapis/gax-go/v2"
 )
 
 type keysImpl struct {
