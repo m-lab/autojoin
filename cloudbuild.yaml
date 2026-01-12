@@ -7,7 +7,7 @@ options:
 
 steps:
 # Run unit tests for environment.
-- name: golang:1.23-alpine
+- name: golang:1.25-alpine
   entrypoint: sh
   args:
   - -c
