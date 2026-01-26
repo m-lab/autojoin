@@ -925,7 +925,7 @@ func TestIsValidName(t *testing.T) {
 		// Valid cases
 		{"test123", true},
 		{"abc", true},
-		
+
 		// Invalid cases - should fail with anchored regex
 		{"", false},
 		{"toolongname", false}, // > 10 chars
@@ -942,7 +942,7 @@ func TestIsValidName(t *testing.T) {
 	}
 }
 
-// TestIsValidUplink tests basic validation and security improvements  
+// TestIsValidUplink tests basic validation and security improvements
 func TestIsValidUplink(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -951,13 +951,13 @@ func TestIsValidUplink(t *testing.T) {
 		// Valid cases
 		{"10g", true},
 		{"100g", true},
-		
+
 		// Invalid cases - should fail with anchored regex
 		{"", false},
-		{"100", false},              // no 'g'
-		{"100g malicious", false},   // extra content (would pass unanchored)
-		{"malicious100g", false},    // prefix content (would pass unanchored)
-		{"100 g", false},            // space
+		{"100", false},            // no 'g'
+		{"100g malicious", false}, // extra content (would pass unanchored)
+		{"malicious100g", false},  // prefix content (would pass unanchored)
+		{"100 g", false},          // space
 	}
 
 	for _, tt := range tests {
@@ -977,16 +977,16 @@ func TestGetPorts(t *testing.T) {
 	}{
 		{"valid-ports", []string{"80", "443"}, []string{"80", "443"}},
 		{"edge-ports", []string{"1", "65535"}, []string{"1", "65535"}},
-		{"invalid-range", []string{"0", "65536"}, []string{"9990"}}, // out of range
+		{"invalid-range", []string{"0", "65536"}, []string{"9990"}},  // out of range
 		{"mixed", []string{"80", "0", "443"}, []string{"80", "443"}}, // filter invalid
-		{"no-ports", []string{}, []string{"9990"}}, // default
+		{"no-ports", []string{}, []string{"9990"}},                   // default
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/?"+buildPortQuery(tt.ports), nil)
 			result := getPorts(req)
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("got %v, want %v", result, tt.expected)
 			}

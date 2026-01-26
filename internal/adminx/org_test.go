@@ -79,15 +79,6 @@ func (f *fakeDNS) RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) 
 	return f.regSplit, f.regSplitErr
 }
 
-type fakeAPIKeys struct {
-	createKey    string
-	createKeyErr error
-}
-
-func (f *fakeAPIKeys) CreateKey(ctx context.Context, org string) (string, error) {
-	return f.createKey, f.createKeyErr
-}
-
 func TestOrg_Setup(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -98,7 +89,6 @@ func TestOrg_Setup(t *testing.T) {
 		dns          DNS
 		orgm         *fakeOrgManager
 		org          string
-		keys         Keys
 		updateTables bool
 		bindingCount int
 		wantErr      bool
@@ -128,9 +118,6 @@ func TestOrg_Setup(t *testing.T) {
 					Name:    dnsname.OrgZone("foo", "mlab-foo"),
 					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
 				},
-			},
-			keys: &fakeAPIKeys{
-				createKey: "this-is-a-fake-key",
 			},
 			orgm:         &fakeOrgManager{},
 			bindingCount: 3,
@@ -232,9 +219,6 @@ func TestOrg_Setup(t *testing.T) {
 					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
 				},
 			},
-			keys: &fakeAPIKeys{
-				createKey: "this-is-a-fake-key",
-			},
 			orgm:         &fakeOrgManager{},
 			bindingCount: 3,
 		},
@@ -329,9 +313,6 @@ func TestOrg_Setup(t *testing.T) {
 					DnsName: dnsname.OrgDNS("foo", "mlab-foo"),
 				},
 			},
-			keys: &fakeAPIKeys{
-				createKey: "this-is-a-fake-key",
-			},
 			updateTables: true,
 			orgm:         &fakeOrgManager{},
 			bindingCount: 3,
@@ -342,7 +323,7 @@ func TestOrg_Setup(t *testing.T) {
 			n := NewNamer("mlab-foo")
 			sam := NewServiceAccountsManager(tt.sam, n)
 			sm := NewSecretManager(tt.smc, n, sam)
-			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns, tt.keys, tt.orgm, tt.updateTables)
+			o := NewOrg("mlab-foo", tt.crm, sam, sm, tt.dns, tt.orgm, tt.updateTables)
 			if err := o.Setup(context.Background(), "foobar", "testemail"); (err != nil) != tt.wantErr {
 				t.Errorf("Org.Setup() error = %v, wantErr %v", err, tt.wantErr)
 			}
