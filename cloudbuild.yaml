@@ -23,6 +23,7 @@ steps:
   args:
   - sed -i -e 's/{{PROJECT_ID}}/$PROJECT_ID/g' app.yaml
   - sed -i -e 's/{{REDIS_ADDRESS}}/$_REDIS_ADDRESS/g' app.yaml
+  - sed -i -e 's/{{CREDENTIALS_PROJECT}}/$_CREDENTIALS_PROJECT/g' app.yaml
   - gcloud --project $PROJECT_ID app deploy --promote app.yaml
   # After deploying the new service, deploy the openapi spec.
   - sed -i -e 's/{{PROJECT}}/$PROJECT_ID/' -e 's/{{DEPLOYMENT}}/$PROJECT_ID/' openapi.yaml

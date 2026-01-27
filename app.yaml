@@ -35,5 +35,6 @@ env_variables:
   MAXMIND_URL: gs://downloader-{{PROJECT_ID}}/Maxmind/current/GeoLite2-City.tar.gz
   ROUTEVIEW_V4_URL: gs://downloader-{{PROJECT_ID}}/RouteViewIPv4/current/routeview.pfx2as.gz
   REDIS_ADDRESS: {{REDIS_ADDRESS}}
+  CREDENTIALS_PROJECT: {{CREDENTIALS_PROJECT}}
   GC_TTL: 24h
 
