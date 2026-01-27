@@ -13,11 +13,11 @@ import (
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
-	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/gcp-service-discovery/discovery"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/testingx"
+	"github.com/m-lab/token-exchange/store"
 	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
 	"google.golang.org/api/dns/v1"
@@ -116,17 +116,17 @@ func (f *fakeSecretManager) LoadOrCreateKey(ctx context.Context, org string) (st
 }
 
 type fakeDatastoreOrgManager struct {
-	org *adminx.Organization
+	org *store.AutojoinOrganization
 	err error
 }
 
-func (f *fakeDatastoreOrgManager) GetOrganization(ctx context.Context, orgName string) (*adminx.Organization, error) {
+func (f *fakeDatastoreOrgManager) GetOrganization(ctx context.Context, orgName string) (*store.AutojoinOrganization, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	if f.org == nil {
 		// Return default if not specified
-		return &adminx.Organization{
+		return &store.AutojoinOrganization{
 			Name:                  orgName,
 			ProbabilityMultiplier: float64Ptr(1.0),
 		}, nil
@@ -624,7 +624,7 @@ func TestServer_Register(t *testing.T) {
 				key: "fake key data",
 			},
 			dsm: &fakeDatastoreOrgManager{
-				org: &adminx.Organization{
+				org: &store.AutojoinOrganization{
 					Name:                  "bar",
 					ProbabilityMultiplier: float64Ptr(2.0),
 				},
@@ -647,7 +647,7 @@ func TestServer_Register(t *testing.T) {
 				key: "fake key data",
 			},
 			dsm: &fakeDatastoreOrgManager{
-				org: &adminx.Organization{
+				org: &store.AutojoinOrganization{
 					Name:                  "bar",
 					ProbabilityMultiplier: nil,
 				},

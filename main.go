@@ -25,6 +25,7 @@ import (
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/locate/memorystore"
+	"github.com/m-lab/token-exchange/store"
 	"github.com/m-lab/uuid-annotator/asnannotator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -118,7 +119,7 @@ func main() {
 	ds, err := datastore.NewClient(mainCtx, project)
 	rtx.Must(err, "failed to create datastore client")
 	defer ds.Close()
-	dsm := adminx.NewDatastoreManager(ds, project)
+	dsm := store.NewAutojoinManager(ds, project, "platform-credentials")
 
 	// Create server.
 	s := handler.NewServer(project, i, mm, asn, d, gc, sm, dsm, minVersion)
