@@ -25,6 +25,7 @@ import (
 	"github.com/m-lab/go/prometheusx"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/locate/memorystore"
+	"github.com/m-lab/token-exchange/store"
 	"github.com/m-lab/uuid-annotator/asnannotator"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -33,10 +34,11 @@ import (
 )
 
 var (
-	listenPort   string
-	project      string
-	redisAddr    string
-	minVersion   string
+	listenPort         string
+	project            string
+	credentialsProject string
+	redisAddr          string
+	minVersion         string
 	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.25/iata-icao.csv")
 	maxmindSrc   = flagx.URL{}
 	routeviewSrc = flagx.URL{}
@@ -48,6 +50,7 @@ func init() {
 	// PORT and GOOGLE_CLOUD_PROJECT are part of the default App Engine environment.
 	flag.StringVar(&listenPort, "port", "8080", "AppEngine port environment variable")
 	flag.StringVar(&project, "google-cloud-project", "", "AppEngine project environment variable")
+	flag.StringVar(&credentialsProject, "credentials-project", "", "GCP project for credentials Datastore (defaults to google-cloud-project)")
 	flag.StringVar(&minVersion, "min-version", "0.0.0", "Minimum version of the client to accept")
 	flag.Var(&iataSrc, "iata-url", "URL to IATA dataset")
 	flag.Var(&maxmindSrc, "maxmind-url", "URL of a Maxmind GeoIP dataset, e.g. gs://bucket/file or file:./relativepath/file")
@@ -114,11 +117,15 @@ func main() {
 	log.Print("DNS garbage collector started")
 	defer gc.Stop()
 
-	// Setup Datastore client
-	ds, err := datastore.NewClient(mainCtx, project)
-	rtx.Must(err, "failed to create datastore client")
-	defer ds.Close()
-	dsm := adminx.NewDatastoreManager(ds, project)
+	// Setup Datastore client for credentials (may be in a different project)
+	credProj := credentialsProject
+	if credProj == "" {
+		credProj = project
+	}
+	credentialsDS, err := datastore.NewClient(mainCtx, credProj)
+	rtx.Must(err, "failed to create credentials datastore client")
+	defer credentialsDS.Close()
+	dsm := store.NewAutojoinManager(credentialsDS, credProj, "platform-credentials")
 
 	// Create server.
 	s := handler.NewServer(project, i, mm, asn, d, gc, sm, dsm, minVersion)
