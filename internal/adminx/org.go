@@ -173,12 +173,13 @@ func (o *Org) ApplyPolicy(ctx context.Context, org string, account *iam.ServiceA
 	newBindings, wasMissing := appendBindingIfMissing(curr.Bindings, bindings...)
 
 	// Apply bindings if any were missing.
+	// Version 3 is required for policies with conditional role bindings.
 	preq := &cloudresourcemanager.SetIamPolicyRequest{
 		Policy: &cloudresourcemanager.Policy{
 			AuditConfigs: curr.AuditConfigs,
 			Bindings:     newBindings,
 			Etag:         curr.Etag,
-			Version:      curr.Version,
+			Version:      3,
 		},
 	}
 
