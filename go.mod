@@ -9,16 +9,16 @@ require (
 	github.com/go-test/deep v1.1.1
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/gomodule/redigo v1.9.3
-	github.com/googleapis/gax-go/v2 v2.16.0
+	github.com/googleapis/gax-go/v2 v2.17.0
 	github.com/m-lab/gcp-service-discovery v1.5.1
 	github.com/m-lab/go v0.1.76
-	github.com/m-lab/locate v0.19.1
+	github.com/m-lab/locate v0.19.2
 	github.com/m-lab/token-exchange v0.3.1
 	github.com/m-lab/uuid-annotator v0.5.10
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/prometheus/client_golang v1.23.2
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
-	google.golang.org/api v0.262.0
+	google.golang.org/api v0.264.0
 	google.golang.org/grpc v1.78.0
 )
 
@@ -74,8 +74,8 @@ require (
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/genproto v0.0.0-20260120221211-b8f7ae30c516 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260120221211-b8f7ae30c516 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120221211-b8f7ae30c516 // indirect
+	google.golang.org/genproto v0.0.0-20260128011058-8636f8732409 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
