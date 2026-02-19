@@ -30,8 +30,8 @@ var (
 
 func init() {
 	flag.StringVar(&org, "org", "", "Organization name. Must match name assigned by M-Lab")
-	flag.StringVar(&project, "project", "", "GCP project to create organization resources")
-	flag.StringVar(&credentialsProject, "credentials-project", "", "GCP project for credentials Datastore (defaults to -project)")
+	flag.StringVar(&project, "project", "mlab-autojoin", "GCP project to create organization resources")
+	flag.StringVar(&credentialsProject, "credentials-project", "mlab-oti", "GCP project for credentials Datastore")
 	flag.BoolVar(&updateTables, "update-tables", false, "Allow this org's service account to update table schemas")
 	flag.StringVar(&orgEmail, "org-email", "", "Organization contact email")
 }
@@ -40,8 +40,8 @@ func main() {
 	flag.Parse()
 	log.SetFlags(log.Lshortfile | log.LUTC)
 
-	if org == "" || project == "" {
-		log.Fatalf("-org and -project are required flags")
+	if org == "" {
+		log.Fatalf("-org is a required flag")
 	}
 
 	ctx := context.Background()
@@ -59,17 +59,13 @@ func main() {
 	rtx.Must(err, "failed to create new dns service")
 	d := dnsx.NewManager(dnsiface.NewCloudDNSService(dnsService), project, dnsname.ProjectZone(project))
 
-	// Setup Datastore client for credentials (may be in a different project)
-	credProj := credentialsProject
-	if credProj == "" {
-		credProj = project
-	}
-	dsc, err := datastore.NewClient(ctx, credProj)
+	// Setup Datastore client for credentials (may be in a different project).
+	dsc, err := datastore.NewClient(ctx, credentialsProject)
 	rtx.Must(err, "failed to create datastore client")
 	defer dsc.Close()
 
 	// Initialize AutojoinManager from token-exchange with the correct namespace.
-	am := store.NewAutojoinManager(dsc, credProj, "platform-credentials")
+	am := store.NewAutojoinManager(dsc, credentialsProject, "platform-credentials")
 
 	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d, am, updateTables)
 	err = o.Setup(ctx, org, orgEmail)
