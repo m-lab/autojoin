@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/googleapis/gax-go/v2/apierror"
+	"google.golang.org/api/googleapi"
 	"google.golang.org/api/iam/v1"
 	"google.golang.org/grpc/codes"
 )
@@ -17,6 +18,7 @@ type IAMService interface {
 	GetServiceAccount(ctx context.Context, saName string) (*iam.ServiceAccount, error)
 	CreateServiceAccount(ctx context.Context, projName string, req *iam.CreateServiceAccountRequest) (*iam.ServiceAccount, error)
 	CreateKey(ctx context.Context, saName string, req *iam.CreateServiceAccountKeyRequest) (*iam.ServiceAccountKey, error)
+	DeleteServiceAccount(ctx context.Context, saName string) error
 }
 
 // ServiceAccountsManager contains resources needed for managing service accounts.
@@ -94,11 +96,24 @@ func (s *ServiceAccountsManager) CreateKey(ctx context.Context, org string) (*ia
 	return key, nil
 }
 
+// DeleteServiceAccount deletes the service account associated with org.
+func (s *ServiceAccountsManager) DeleteServiceAccount(ctx context.Context, org string) error {
+	err := s.iams.DeleteServiceAccount(ctx, s.Namer.GetServiceAccountName(org))
+	if errIsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 func errIsNotFound(err error) bool {
 	var gerr *apierror.APIError
 	if errors.As(err, &gerr) {
 		s := gerr.GRPCStatus()
 		return (s != nil && s.Code() == codes.NotFound) || gerr.HTTPCode() == http.StatusNotFound
+	}
+	var herr *googleapi.Error
+	if errors.As(err, &herr) {
+		return herr.Code == http.StatusNotFound
 	}
 	return false
 }

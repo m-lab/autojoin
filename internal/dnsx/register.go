@@ -174,6 +174,41 @@ func (d *Manager) RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) 
 	return result.Additions[0], nil
 }
 
+// DeleteZoneSplit removes the NS split from the parent zone for the given org zone.
+func (d *Manager) DeleteZoneSplit(ctx context.Context, zone *dns.ManagedZone) error {
+	rr, err := d.Service.ResourceRecordSetsGet(ctx, d.Project, d.Zone, zone.DnsName, recordTypeNS)
+	switch {
+	case isNotFound(err):
+		return nil
+	case err != nil:
+		return err
+	}
+	chg := &dns.Change{
+		Deletions: []*dns.ResourceRecordSet{
+			{
+				Name:    rr.Name,
+				Type:    rr.Type,
+				Ttl:     rr.Ttl,
+				Rrdatas: rr.Rrdatas,
+			},
+		},
+	}
+	_, err = d.Service.ChangeCreate(ctx, d.Project, d.Zone, chg)
+	if isNotFound(err) {
+		return nil
+	}
+	return err
+}
+
+// DeleteZone deletes the named managed zone.
+func (d *Manager) DeleteZone(ctx context.Context, zoneName string) error {
+	err := d.Service.DeleteManagedZone(ctx, d.Project, zoneName)
+	if isNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 // get retrieves a resource record for the given hostname and rtype.
 func (d *Manager) get(ctx context.Context, hostname, rtype string) (*dns.ResourceRecordSet, error) {
 	return d.Service.ResourceRecordSetsGet(ctx, d.Project, d.Zone, hostname, rtype)

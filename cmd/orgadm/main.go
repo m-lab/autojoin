@@ -26,6 +26,7 @@ var (
 	project            string
 	credentialsProject string
 	updateTables       bool
+	deleteMode         bool
 )
 
 func init() {
@@ -34,6 +35,7 @@ func init() {
 	flag.StringVar(&credentialsProject, "credentials-project", "mlab-oti", "GCP project for credentials Datastore")
 	flag.BoolVar(&updateTables, "update-tables", false, "Allow this org's service account to update table schemas")
 	flag.StringVar(&orgEmail, "org-email", "", "Organization contact email")
+	flag.BoolVar(&deleteMode, "delete", false, "Delete all resources associated with org")
 }
 
 func main() {
@@ -64,10 +66,17 @@ func main() {
 	rtx.Must(err, "failed to create datastore client")
 	defer dsc.Close()
 
-	// Initialize AutojoinManager from token-exchange with the correct namespace.
-	am := store.NewAutojoinManager(dsc, credentialsProject, "platform-credentials")
+	// Initialize Datastore manager from token-exchange with delete helpers.
+	am := adminx.NewDatastoreManager(dsc, credentialsProject, "platform-credentials")
 
 	o := adminx.NewOrg(project, crmiface.NewCRM(project, crm), sa, sm, d, am, updateTables)
+	if deleteMode {
+		err = o.Delete(ctx, org)
+		rtx.Must(err, "failed to delete organization resources: "+org)
+		log.Println("Delete okay - org:", org)
+		return
+	}
+
 	err = o.Setup(ctx, org, orgEmail)
 	rtx.Must(err, "failed to set up new organization: "+org)
 

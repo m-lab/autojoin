@@ -12,6 +12,7 @@ type Service interface {
 	ChangeCreate(ctx context.Context, project string, zone string, change *dns.Change) (*dns.Change, error)
 	GetManagedZone(ctx context.Context, project, zoneName string) (*dns.ManagedZone, error)
 	CreateManagedZone(ctx context.Context, project string, z *dns.ManagedZone) (*dns.ManagedZone, error)
+	DeleteManagedZone(ctx context.Context, project, zoneName string) error
 }
 
 // CloudDNSService implements the DNS Service interface.
@@ -42,4 +43,9 @@ func (c *CloudDNSService) GetManagedZone(ctx context.Context, project, zoneName 
 // CreateManagedZone creates the given zone.
 func (c *CloudDNSService) CreateManagedZone(ctx context.Context, project string, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
 	return c.Service.ManagedZones.Create(project, zone).Context(ctx).Do()
+}
+
+// DeleteManagedZone deletes the named managed zone.
+func (c *CloudDNSService) DeleteManagedZone(ctx context.Context, project, zoneName string) error {
+	return c.Service.ManagedZones.Delete(project, zoneName).Context(ctx).Do()
 }

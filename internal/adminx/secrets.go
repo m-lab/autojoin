@@ -12,6 +12,7 @@ import (
 type SecretManagerClient interface {
 	GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
 	CreateSecret(ctx context.Context, req *secretmanagerpb.CreateSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
+	DeleteSecret(ctx context.Context, req *secretmanagerpb.DeleteSecretRequest, opts ...gax.CallOption) error
 	GetSecretVersion(ctx context.Context, req *secretmanagerpb.GetSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error)
 	AddSecretVersion(ctx context.Context, req *secretmanagerpb.AddSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error)
 	AccessSecretVersion(ctx context.Context, req *secretmanagerpb.AccessSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.AccessSecretVersionResponse, error)
@@ -96,6 +97,18 @@ func (s *SecretManager) LoadOrCreateKey(ctx context.Context, org string) (string
 		return "", err
 	}
 	return key, nil
+}
+
+// DeleteSecret deletes the org secret. NotFound is treated as success.
+func (s *SecretManager) DeleteSecret(ctx context.Context, org string) error {
+	req := &secretmanagerpb.DeleteSecretRequest{
+		Name: s.Namer.GetSecretName(org),
+	}
+	err := s.smc.DeleteSecret(ctx, req)
+	if errIsNotFound(err) {
+		return nil
+	}
+	return err
 }
 
 // StoreKey saves the given key in the org's secret.

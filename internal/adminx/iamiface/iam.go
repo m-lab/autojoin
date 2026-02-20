@@ -27,3 +27,8 @@ func (i *iamImpl) CreateServiceAccount(ctx context.Context, pName string, req *i
 func (i *iamImpl) CreateKey(ctx context.Context, saName string, req *iam.CreateServiceAccountKeyRequest) (*iam.ServiceAccountKey, error) {
 	return i.iamClient.Projects.ServiceAccounts.Keys.Create(saName, req).Context(ctx).Do()
 }
+
+func (i *iamImpl) DeleteServiceAccount(ctx context.Context, saName string) error {
+	_, err := i.iamClient.Projects.ServiceAccounts.Delete(saName).Context(ctx).Do()
+	return err
+}

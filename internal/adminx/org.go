@@ -33,6 +33,8 @@ var (
 type DNS interface {
 	RegisterZone(ctx context.Context, zone *dns.ManagedZone) (*dns.ManagedZone, error)
 	RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) (*dns.ResourceRecordSet, error)
+	DeleteZoneSplit(ctx context.Context, zone *dns.ManagedZone) error
+	DeleteZone(ctx context.Context, zoneName string) error
 }
 
 // CRM is a simplified interface to the Google Cloud Resource Manager API.
@@ -46,6 +48,8 @@ type OrganizationManager interface {
 	CreateOrganization(ctx context.Context, name, email string) error
 	CreateAPIKeyWithValue(ctx context.Context, org, value string) (string, error)
 	GetAPIKeys(ctx context.Context, org string) ([]string, error)
+	DeleteAPIKeys(ctx context.Context, org string) error
+	DeleteOrganization(ctx context.Context, org string) error
 }
 
 // Org contains fields needed to setup a new organization for Autojoined nodes.
@@ -102,6 +106,34 @@ func (o *Org) Setup(ctx context.Context, org string, email string) error {
 	return nil
 }
 
+// Delete removes all setup-created resources for org.
+func (o *Org) Delete(ctx context.Context, org string) error {
+	if err := o.orgm.DeleteAPIKeys(ctx, org); err != nil {
+		return err
+	}
+
+	zone := &dns.ManagedZone{
+		Name:    dnsname.OrgZone(org, o.Project),
+		DnsName: dnsname.OrgDNS(org, o.Project),
+	}
+	if err := o.dns.DeleteZoneSplit(ctx, zone); err != nil {
+		return err
+	}
+	if err := o.dns.DeleteZone(ctx, zone.Name); err != nil {
+		return err
+	}
+	if err := o.sm.DeleteSecret(ctx, org); err != nil {
+		return err
+	}
+	if err := o.RemovePolicy(ctx, org); err != nil {
+		return err
+	}
+	if err := o.sam.DeleteServiceAccount(ctx, org); err != nil {
+		return err
+	}
+	return o.orgm.DeleteOrganization(ctx, org)
+}
+
 // RegisterDNS creates the organization zone and the zone split within the project zone.
 func (o *Org) RegisterDNS(ctx context.Context, org string) error {
 	zone, err := o.dns.RegisterZone(ctx, &dns.ManagedZone{
@@ -138,35 +170,10 @@ func (o *Org) ApplyPolicy(ctx context.Context, org string, account *iam.ServiceA
 		log.Println("get policy", err)
 		return err
 	}
-	expression := ""
-	role := ""
-	if updateTables {
-		// Allow this role to upload data and update schema tables.
-		expression = fmt.Sprintf(expUploadTablesFmt, o.Project, org, o.Project, org, o.Project, o.Project)
-		role = "roles/storage.objectUser"
-	} else {
-		// Only allow this role to upload data.
-		expression = fmt.Sprintf(expUploadFmt, o.Project, org, o.Project, org)
-		role = "roles/storage.objectCreator"
-	}
 	// Setup new bindings.
 	bindings := []*cloudresourcemanager.Binding{
-		{
-			Condition: &cloudresourcemanager.Expr{
-				Title:      "Upload restriction for " + org,
-				Expression: expression,
-			},
-			Members: []string{"serviceAccount:" + account.Email},
-			Role:    role,
-		},
-		{
-			Condition: &cloudresourcemanager.Expr{
-				Title:      "Read restriction for " + org,
-				Expression: fmt.Sprintf(expReadFmt, o.Project, o.Project, o.Project),
-			},
-			Members: []string{"serviceAccount:" + account.Email},
-			Role:    "roles/storage.objectViewer",
-		},
+		o.uploadBinding(org, account.Email, updateTables),
+		o.readBinding(org, account.Email),
 	}
 
 	// Append the new bindings if missing from the current set.
@@ -193,6 +200,77 @@ func (o *Org) ApplyPolicy(ctx context.Context, org string, account *iam.ServiceA
 	return nil
 }
 
+// RemovePolicy removes org-specific conditional IAM bindings.
+func (o *Org) RemovePolicy(ctx context.Context, org string) error {
+	req := &cloudresourcemanager.GetIamPolicyRequest{
+		Options: &cloudresourcemanager.GetPolicyOptions{
+			RequestedPolicyVersion: 3,
+		},
+	}
+	curr, err := o.crm.GetIamPolicy(ctx, req)
+	if err != nil {
+		log.Println("get policy", err)
+		return err
+	}
+
+	email := o.sam.Namer.GetServiceAccountEmail(org)
+	targets := []*cloudresourcemanager.Binding{
+		o.readBinding(org, email),
+		o.uploadBinding(org, email, false),
+		o.uploadBinding(org, email, true),
+	}
+	newBindings, removed := removeBindings(curr.Bindings, targets...)
+	if !removed {
+		return nil
+	}
+
+	preq := &cloudresourcemanager.SetIamPolicyRequest{
+		Policy: &cloudresourcemanager.Policy{
+			AuditConfigs: curr.AuditConfigs,
+			Bindings:     newBindings,
+			Etag:         curr.Etag,
+			Version:      3,
+		},
+	}
+	err = o.crm.SetIamPolicy(ctx, preq)
+	if err != nil {
+		log.Println("set policy", err)
+		return err
+	}
+	return nil
+}
+
+func (o *Org) uploadBinding(org, email string, updateTables bool) *cloudresourcemanager.Binding {
+	expression := ""
+	role := ""
+	if updateTables {
+		expression = fmt.Sprintf(expUploadTablesFmt, o.Project, org, o.Project, org, o.Project, o.Project)
+		role = "roles/storage.objectUser"
+	} else {
+		expression = fmt.Sprintf(expUploadFmt, o.Project, org, o.Project, org)
+		role = "roles/storage.objectCreator"
+	}
+	return &cloudresourcemanager.Binding{
+		Condition: &cloudresourcemanager.Expr{
+			Title:      "Upload restriction for " + org,
+			Expression: expression,
+		},
+		Members: []string{"serviceAccount:" + email},
+		Role:    role,
+	}
+}
+
+func (o *Org) readBinding(org, email string) *cloudresourcemanager.Binding {
+	return &cloudresourcemanager.Binding{
+		Condition: &cloudresourcemanager.Expr{
+			Title:      "Read restriction for " + org,
+			Expression: fmt.Sprintf(expReadFmt, o.Project, o.Project, o.Project),
+		},
+		Members: []string{"serviceAccount:" + email},
+		Role:    "roles/storage.objectViewer",
+	}
+}
+
 func appendBindingIfMissing(slice []*cloudresourcemanager.Binding, elems ...*cloudresourcemanager.Binding) ([]*cloudresourcemanager.Binding, bool) {
 	result := []*cloudresourcemanager.Binding{}
 	foundMissing := false
@@ -214,6 +292,25 @@ func appendBindingIfMissing(slice []*cloudresourcemanager.Binding, elems ...*clo
 	}
 	// Return all bindings
 	return append(result, slice...), foundMissing
+}
+
+func removeBindings(slice []*cloudresourcemanager.Binding, elems ...*cloudresourcemanager.Binding) ([]*cloudresourcemanager.Binding, bool) {
+	result := []*cloudresourcemanager.Binding{}
+	removed := false
+	for _, current := range slice {
+		matched := false
+		for _, target := range elems {
+			if BindingIsEqual(current, target) {
+				matched = true
+				removed = true
+				break
+			}
+		}
+		if !matched {
+			result = append(result, current)
+		}
+	}
+	return result, removed
 }
 
 // BindingIsEqual checks wether the two provided bindings contain equal conditions, members, and roles.
