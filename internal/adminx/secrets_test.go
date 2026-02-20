@@ -15,6 +15,7 @@ type fakeSMC struct {
 	getSecErr       error
 	createSec       *secretmanagerpb.Secret
 	createSecErr    error
+	deleteSecErr    error
 	getSecVer       *secretmanagerpb.SecretVersion
 	getSecVerErr    error
 	addSecVer       *secretmanagerpb.SecretVersion
@@ -29,11 +30,49 @@ func (f *fakeSMC) GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretR
 func (f *fakeSMC) CreateSecret(ctx context.Context, req *secretmanagerpb.CreateSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error) {
 	return f.createSec, f.createSecErr
 }
+func (f *fakeSMC) DeleteSecret(ctx context.Context, req *secretmanagerpb.DeleteSecretRequest, opts ...gax.CallOption) error {
+	return f.deleteSecErr
+}
 func (f *fakeSMC) GetSecretVersion(ctx context.Context, req *secretmanagerpb.GetSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error) {
 	return f.getSecVer, f.getSecVerErr
 }
 func (f *fakeSMC) AddSecretVersion(ctx context.Context, req *secretmanagerpb.AddSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error) {
 	return f.addSecVer, f.addSecVerErr
+}
+
+func TestSecretManager_DeleteSecret(t *testing.T) {
+	tests := []struct {
+		name    string
+		smc     SecretManagerClient
+		wantErr bool
+	}{
+		{
+			name: "success",
+			smc:  &fakeSMC{},
+		},
+		{
+			name: "success-not-found",
+			smc: &fakeSMC{
+				deleteSecErr: createNotFoundErr(),
+			},
+		},
+		{
+			name: "error",
+			smc: &fakeSMC{
+				deleteSecErr: fmt.Errorf("delete failed"),
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := NewSecretManager(tt.smc, NewNamer("mlab-foo"), nil)
+			err := s.DeleteSecret(context.Background(), "foo")
+			if (err != nil) != tt.wantErr {
+				t.Errorf("SecretManager.DeleteSecret() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }
 func (f *fakeSMC) AccessSecretVersion(ctx context.Context, req *secretmanagerpb.AccessSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.AccessSecretVersionResponse, error) {
 	return f.accessSecVer, f.accessSecVerErr

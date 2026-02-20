@@ -85,6 +85,9 @@ func (f *fakeDNS) CreateManagedZone(ctx context.Context, project string, zone *d
 func (f *fakeDNS) GetManagedZone(ctx context.Context, project, zoneName string) (*dns.ManagedZone, error) {
 	return nil, nil
 }
+func (f *fakeDNS) DeleteManagedZone(ctx context.Context, project, zoneName string) error {
+	return nil
+}
 
 type fakeStatusTracker struct {
 	updateErr error

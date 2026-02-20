@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -21,17 +22,22 @@ func init() {
 }
 
 type fakeOrgManager struct {
-	createOrgErr error
-	createKeyErr error
-	getKeysErr   error
-	keyString    string
+	createOrgErr  error
+	createKeyErr  error
+	getKeysErr    error
+	keyString     string
+	deleteKeysErr error
+	deleteOrgErr  error
+	callLog       []string
 }
 
 func (f *fakeOrgManager) CreateOrganization(ctx context.Context, name, email string) error {
+	f.callLog = append(f.callLog, "create-org")
 	return f.createOrgErr
 }
 
 func (f *fakeOrgManager) CreateAPIKeyWithValue(ctx context.Context, org, val string) (string, error) {
+	f.callLog = append(f.callLog, "create-key")
 	if f.createKeyErr != nil {
 		return "", f.createKeyErr
 	}
@@ -43,7 +49,18 @@ func (f *fakeOrgManager) CreateAPIKeyWithValue(ctx context.Context, org, val str
 }
 
 func (f *fakeOrgManager) GetAPIKeys(ctx context.Context, org string) ([]string, error) {
+	f.callLog = append(f.callLog, "get-keys")
 	return nil, f.getKeysErr
+}
+
+func (f *fakeOrgManager) DeleteAPIKeys(ctx context.Context, org string) error {
+	f.callLog = append(f.callLog, "delete-keys")
+	return f.deleteKeysErr
+}
+
+func (f *fakeOrgManager) DeleteOrganization(ctx context.Context, org string) error {
+	f.callLog = append(f.callLog, "delete-org")
+	return f.deleteOrgErr
 }
 
 type fakeCRM struct {
@@ -52,6 +69,7 @@ type fakeCRM struct {
 	setPolicyErr error
 	bindingCount int
 	policy       *cloudresourcemanager.Policy
+	setCalls     int
 }
 
 func (f *fakeCRM) GetIamPolicy(ctx context.Context, req *cloudresourcemanager.GetIamPolicyRequest) (*cloudresourcemanager.Policy, error) {
@@ -59,24 +77,44 @@ func (f *fakeCRM) GetIamPolicy(ctx context.Context, req *cloudresourcemanager.Ge
 }
 
 func (f *fakeCRM) SetIamPolicy(ctx context.Context, req *cloudresourcemanager.SetIamPolicyRequest) error {
+	f.setCalls++
 	f.bindingCount = len(req.Policy.Bindings)
 	f.policy = req.Policy
 	return f.setPolicyErr
 }
 
 type fakeDNS struct {
-	regZone     *dns.ManagedZone
-	regZoneErr  error
-	regSplit    *dns.ResourceRecordSet
-	regSplitErr error
+	regZone          *dns.ManagedZone
+	regZoneErr       error
+	regSplit         *dns.ResourceRecordSet
+	regSplitErr      error
+	deleteSplitErr   error
+	deleteZoneErr    error
+	deleteSplitCalls int
+	deleteZoneCalls  int
+	callLog          []string
 }
 
 func (f *fakeDNS) RegisterZone(ctx context.Context, zone *dns.ManagedZone) (*dns.ManagedZone, error) {
+	f.callLog = append(f.callLog, "register-zone")
 	return f.regZone, f.regZoneErr
 }
 
 func (f *fakeDNS) RegisterZoneSplit(ctx context.Context, zone *dns.ManagedZone) (*dns.ResourceRecordSet, error) {
+	f.callLog = append(f.callLog, "register-split")
 	return f.regSplit, f.regSplitErr
+}
+
+func (f *fakeDNS) DeleteZoneSplit(ctx context.Context, zone *dns.ManagedZone) error {
+	f.deleteSplitCalls++
+	f.callLog = append(f.callLog, "delete-split")
+	return f.deleteSplitErr
+}
+
+func (f *fakeDNS) DeleteZone(ctx context.Context, zoneName string) error {
+	f.deleteZoneCalls++
+	f.callLog = append(f.callLog, "delete-zone")
+	return f.deleteZoneErr
 }
 
 func TestOrg_Setup(t *testing.T) {
@@ -346,6 +384,149 @@ func TestOrg_Setup(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestOrg_Delete(t *testing.T) {
+	crm := &fakeCRM{
+		getPolicy: &cloudresourcemanager.Policy{
+			Bindings: []*cloudresourcemanager.Binding{
+				{
+					Condition: &cloudresourcemanager.Expr{
+						Expression: "resource.name.startsWith(\"projects/_/buckets/archive-mlab-foo/objects/autoload/v2/foobar\") || resource.name.startsWith(\"projects/_/buckets/staging-mlab-foo/objects/autoload/v2/foobar\")",
+						Title:      "Upload restriction for foobar",
+					},
+					Members: []string{"serviceAccount:autonode-foobar@mlab-foo.iam.gserviceaccount.com"},
+					Role:    "roles/storage.objectCreator",
+				},
+				{
+					Condition: &cloudresourcemanager.Expr{
+						Expression: "resource.name.startsWith(\"projects/_/buckets/archive-mlab-foo\") || resource.name.startsWith(\"projects/_/buckets/downloader-mlab-foo\") || resource.name.startsWith(\"projects/_/buckets/staging-mlab-foo\")",
+						Title:      "Read restriction for foobar",
+					},
+					Members: []string{"serviceAccount:autonode-foobar@mlab-foo.iam.gserviceaccount.com"},
+					Role:    "roles/storage.objectViewer",
+				},
+				{
+					Condition: &cloudresourcemanager.Expr{
+						Expression: "resource.name.startsWith(\"projects/_/buckets/archive-mlab-foo\")",
+						Title:      "Do not remove",
+					},
+					Members: []string{"serviceAccount:other@mlab-foo.iam.gserviceaccount.com"},
+					Role:    "roles/storage.objectViewer",
+				},
+			},
+		},
+	}
+	orgm := &fakeOrgManager{}
+	iam := &fakeIAMService{}
+	d := &fakeDNS{}
+	n := NewNamer("mlab-foo")
+	sam := NewServiceAccountsManager(iam, n)
+	sm := NewSecretManager(&fakeSMC{}, n, sam)
+	o := NewOrg("mlab-foo", crm, sam, sm, d, orgm, false)
+
+	err := o.Delete(context.Background(), "foobar")
+	if err != nil {
+		t.Fatalf("Org.Delete() error = %v", err)
+	}
+
+	if crm.setCalls != 1 {
+		t.Fatalf("Org.Delete() set policy calls = %d, want 1", crm.setCalls)
+	}
+	if got := len(crm.policy.Bindings); got != 1 {
+		t.Fatalf("Org.Delete() bindings length = %d, want 1", got)
+	}
+	if got := crm.policy.Bindings[0].Condition.Title; got != "Do not remove" {
+		t.Fatalf("Org.Delete() unexpected binding retained: %q", got)
+	}
+
+	gotCalls := append([]string{}, orgm.callLog...)
+	gotCalls = append(gotCalls, d.callLog...)
+	wantCalls := []string{"delete-keys", "delete-org", "delete-split", "delete-zone"}
+	for _, want := range wantCalls {
+		if !contains(gotCalls, want) {
+			t.Fatalf("Org.Delete() missing call %q in %v", want, gotCalls)
+		}
+	}
+}
+
+func TestOrg_Delete_Idempotent(t *testing.T) {
+	crm := &fakeCRM{
+		getPolicy: &cloudresourcemanager.Policy{
+			Bindings: []*cloudresourcemanager.Binding{
+				{
+					Condition: &cloudresourcemanager.Expr{
+						Expression: "resource.name.startsWith(\"projects/_/buckets/archive-mlab-foo\")",
+						Title:      "Other",
+					},
+					Members: []string{"serviceAccount:other@mlab-foo.iam.gserviceaccount.com"},
+					Role:    "roles/storage.objectViewer",
+				},
+			},
+		},
+	}
+	orgm := &fakeOrgManager{}
+	iam := &fakeIAMService{delAcctErr: createNotFoundErr()}
+	d := &fakeDNS{}
+	n := NewNamer("mlab-foo")
+	sam := NewServiceAccountsManager(iam, n)
+	sm := NewSecretManager(&fakeSMC{deleteSecErr: createNotFoundErr()}, n, sam)
+	o := NewOrg("mlab-foo", crm, sam, sm, d, orgm, false)
+
+	err := o.Delete(context.Background(), "foobar")
+	if err != nil {
+		t.Fatalf("Org.Delete() error = %v", err)
+	}
+	if crm.setCalls != 0 {
+		t.Fatalf("Org.Delete() set policy calls = %d, want 0", crm.setCalls)
+	}
+}
+
+func TestOrg_RemovePolicy_PreservesUnrelated(t *testing.T) {
+	keep := &cloudresourcemanager.Binding{
+		Condition: &cloudresourcemanager.Expr{
+			Expression: "resource.name.startsWith(\"projects/_/buckets/archive-mlab-foo\")",
+			Title:      "keep",
+		},
+		Members: []string{"serviceAccount:other@mlab-foo.iam.gserviceaccount.com"},
+		Role:    "roles/storage.objectViewer",
+	}
+	remove := &cloudresourcemanager.Binding{
+		Condition: &cloudresourcemanager.Expr{
+			Expression: "resource.name.startsWith(\"projects/_/buckets/archive-mlab-foo/objects/autoload/v2/foobar\") || resource.name.startsWith(\"projects/_/buckets/staging-mlab-foo/objects/autoload/v2/foobar\")",
+			Title:      "remove",
+		},
+		Members: []string{"serviceAccount:autonode-foobar@mlab-foo.iam.gserviceaccount.com"},
+		Role:    "roles/storage.objectCreator",
+	}
+	crm := &fakeCRM{
+		getPolicy: &cloudresourcemanager.Policy{
+			Bindings: []*cloudresourcemanager.Binding{remove, keep},
+		},
+	}
+	n := NewNamer("mlab-foo")
+	sam := NewServiceAccountsManager(&fakeIAMService{}, n)
+	o := NewOrg("mlab-foo", crm, sam, nil, nil, &fakeOrgManager{}, false)
+
+	err := o.RemovePolicy(context.Background(), "foobar")
+	if err != nil {
+		t.Fatalf("Org.RemovePolicy() error = %v", err)
+	}
+	if crm.setCalls != 1 {
+		t.Fatalf("Org.RemovePolicy() set policy calls = %d, want 1", crm.setCalls)
+	}
+	if !reflect.DeepEqual(crm.policy.Bindings, []*cloudresourcemanager.Binding{keep}) {
+		t.Fatalf("Org.RemovePolicy() bindings = %#v, want %#v", crm.policy.Bindings, []*cloudresourcemanager.Binding{keep})
+	}
+}
+
+func contains(slice []string, want string) bool {
+	for i := range slice {
+		if slice[i] == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestBindingIsEqual(t *testing.T) {

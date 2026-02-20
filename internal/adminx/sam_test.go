@@ -21,6 +21,8 @@ type fakeIAMService struct {
 
 	key    *iam.ServiceAccountKey
 	keyErr error
+
+	delAcctErr error
 }
 
 func (f *fakeIAMService) GetServiceAccount(ctx context.Context, saName string) (*iam.ServiceAccount, error) {
@@ -31,6 +33,9 @@ func (f *fakeIAMService) CreateServiceAccount(ctx context.Context, projName stri
 }
 func (f *fakeIAMService) CreateKey(ctx context.Context, saName string, req *iam.CreateServiceAccountKeyRequest) (*iam.ServiceAccountKey, error) {
 	return f.key, f.keyErr
+}
+func (f *fakeIAMService) DeleteServiceAccount(ctx context.Context, saName string) error {
+	return f.delAcctErr
 }
 
 func createNotFoundErr() error {
@@ -170,6 +175,46 @@ func TestServiceAccountsManager_CreateKey(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("ServiceAccountsManager.CreateKey() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestServiceAccountsManager_DeleteServiceAccount(t *testing.T) {
+	tests := []struct {
+		name    string
+		iams    IAMService
+		org     string
+		wantErr bool
+	}{
+		{
+			name: "success",
+			iams: &fakeIAMService{},
+			org:  "foo",
+		},
+		{
+			name: "success-not-found",
+			iams: &fakeIAMService{
+				delAcctErr: createNotFoundErr(),
+			},
+			org: "foo",
+		},
+		{
+			name: "error",
+			iams: &fakeIAMService{
+				delAcctErr: fmt.Errorf("fake delete error"),
+			},
+			org:     "foo",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := NewNamer("mlab-foo")
+			s := NewServiceAccountsManager(tt.iams, n)
+			err := s.DeleteServiceAccount(context.Background(), tt.org)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ServiceAccountsManager.DeleteServiceAccount() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

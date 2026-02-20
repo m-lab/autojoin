@@ -41,6 +41,10 @@ func (f *fakeDNS2) CreateManagedZone(ctx context.Context, project string, zone *
 	r := f.results["createzone-"+zone.Name]
 	return r.zone, r.err
 }
+func (f *fakeDNS2) DeleteManagedZone(ctx context.Context, project, zoneName string) error {
+	r := f.results["deletezone-"+zoneName]
+	return r.err
+}
 
 type fakeDNS struct {
 	record []*dns.ResourceRecordSet
@@ -74,6 +78,9 @@ func (f *fakeDNS) CreateManagedZone(ctx context.Context, project string, zone *d
 
 func (f *fakeDNS) GetManagedZone(ctx context.Context, project, zoneName string) (*dns.ManagedZone, error) {
 	return nil, nil
+}
+func (f *fakeDNS) DeleteManagedZone(ctx context.Context, project, zoneName string) error {
+	return nil
 }
 
 func TestManager_Register(t *testing.T) {
@@ -494,6 +501,125 @@ func TestManager_RegisterZoneSplit(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Manager.RegisterZoneSplit() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestManager_DeleteZoneSplit(t *testing.T) {
+	zone := &dns.ManagedZone{
+		Name:    "fake-zone",
+		DnsName: "fake.zone.",
+	}
+	fakeRR := &dns.ResourceRecordSet{
+		Name:    "fake.zone.",
+		Type:    "NS",
+		Ttl:     60,
+		Rrdatas: []string{"ns-cloud-a1.googledomains.com."},
+	}
+
+	tests := []struct {
+		name    string
+		project string
+		service dnsiface.Service
+		wantErr bool
+	}{
+		{
+			name:    "success",
+			project: "mlab-sandbox",
+			service: &fakeDNS2{
+				results: map[string]result{
+					"get-autojoin-sandbox-measurement-lab-org-fake.zone.-NS": {get: fakeRR},
+					"chg-autojoin-sandbox-measurement-lab-org":               {chg: &dns.Change{}},
+				},
+			},
+		},
+		{
+			name:    "success-missing-split",
+			project: "mlab-sandbox",
+			service: &fakeDNS2{
+				results: map[string]result{
+					"get-autojoin-sandbox-measurement-lab-org-fake.zone.-NS": {err: &googleapi.Error{Code: 404}},
+				},
+			},
+		},
+		{
+			name:    "error-get",
+			project: "mlab-sandbox",
+			service: &fakeDNS2{
+				results: map[string]result{
+					"get-autojoin-sandbox-measurement-lab-org-fake.zone.-NS": {err: fmt.Errorf("get error")},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name:    "error-change",
+			project: "mlab-sandbox",
+			service: &fakeDNS2{
+				results: map[string]result{
+					"get-autojoin-sandbox-measurement-lab-org-fake.zone.-NS": {get: fakeRR},
+					"chg-autojoin-sandbox-measurement-lab-org":               {err: fmt.Errorf("change error")},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := NewManager(tt.service, tt.project, dnsname.ProjectZone(tt.project))
+			err := d.DeleteZoneSplit(context.Background(), zone)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Manager.DeleteZoneSplit() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestManager_DeleteZone(t *testing.T) {
+	tests := []struct {
+		name    string
+		project string
+		service dnsiface.Service
+		wantErr bool
+	}{
+		{
+			name:    "success",
+			project: "mlab-sandbox",
+			service: &fakeDNS2{
+				results: map[string]result{
+					"deletezone-fake-zone": {},
+				},
+			},
+		},
+		{
+			name:    "success-not-found",
+			project: "mlab-sandbox",
+			service: &fakeDNS2{
+				results: map[string]result{
+					"deletezone-fake-zone": {err: &googleapi.Error{Code: 404}},
+				},
+			},
+		},
+		{
+			name:    "error",
+			project: "mlab-sandbox",
+			service: &fakeDNS2{
+				results: map[string]result{
+					"deletezone-fake-zone": {err: fmt.Errorf("delete error")},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d := NewManager(tt.service, tt.project, dnsname.ProjectZone(tt.project))
+			err := d.DeleteZone(context.Background(), "fake-zone")
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Manager.DeleteZone() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}
