@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
-	"github.com/googleapis/gax-go"
+	"github.com/googleapis/gax-go/v2"
 )
 
 // SecretManagerClient is an interface describing operations on the Google Cloud Secret Manager API.

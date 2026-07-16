@@ -15,7 +15,6 @@ import (
 	"github.com/Masterminds/semver/v3"
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
-	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/dnsname"
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
@@ -24,6 +23,7 @@ import (
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/rtx"
 	v2 "github.com/m-lab/locate/api/v2"
+	"github.com/m-lab/token-exchange/store"
 	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
 )
@@ -82,7 +82,7 @@ type ServiceAccountSecretManager interface {
 }
 
 type Datastore interface {
-	GetOrganization(ctx context.Context, name string) (*adminx.Organization, error)
+	GetOrganization(ctx context.Context, name string) (*store.AutojoinOrganization, error)
 }
 
 // NewServer creates a new Server instance for request handling.

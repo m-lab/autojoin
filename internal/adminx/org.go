@@ -48,11 +48,6 @@ type OrganizationManager interface {
 	GetAPIKeys(ctx context.Context, org string) ([]string, error)
 }
 
-// Keys is the interface used to manage organization API keys.
-type Keys interface {
-	CreateKey(ctx context.Context, org string) (string, error)
-}
-
 // Org contains fields needed to setup a new organization for Autojoined nodes.
 type Org struct {
 	Project      string
@@ -61,12 +56,11 @@ type Org struct {
 	sm           *SecretManager
 	orgm         OrganizationManager
 	dns          DNS
-	keys         Keys
 	updateTables bool
 }
 
 // NewOrg creates a new Org instance for setting up a new organization.
-func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS, k Keys,
+func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretManager, dns DNS,
 	orgm OrganizationManager, updateTables bool) *Org {
 	return &Org{
 		Project:      project,
@@ -75,7 +69,6 @@ func NewOrg(project string, crm CRM, sam *ServiceAccountsManager, sm *SecretMana
 		sm:           sm,
 		orgm:         orgm,
 		dns:          dns,
-		keys:         k,
 		updateTables: updateTables,
 	}
 }
@@ -180,12 +173,13 @@ func (o *Org) ApplyPolicy(ctx context.Context, org string, account *iam.ServiceA
 	newBindings, wasMissing := appendBindingIfMissing(curr.Bindings, bindings...)
 
 	// Apply bindings if any were missing.
+	// Version 3 is required for policies with conditional role bindings.
 	preq := &cloudresourcemanager.SetIamPolicyRequest{
 		Policy: &cloudresourcemanager.Policy{
 			AuditConfigs: curr.AuditConfigs,
 			Bindings:     newBindings,
 			Etag:         curr.Etag,
-			Version:      curr.Version,
+			Version:      3,
 		},
 	}
 

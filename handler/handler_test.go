@@ -13,11 +13,11 @@ import (
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
-	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/gcp-service-discovery/discovery"
 	"github.com/m-lab/go/host"
 	"github.com/m-lab/go/testingx"
+	"github.com/m-lab/token-exchange/store"
 	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
 	"google.golang.org/api/dns/v1"
@@ -116,17 +116,17 @@ func (f *fakeSecretManager) LoadOrCreateKey(ctx context.Context, org string) (st
 }
 
 type fakeDatastoreOrgManager struct {
-	org *adminx.Organization
+	org *store.AutojoinOrganization
 	err error
 }
 
-func (f *fakeDatastoreOrgManager) GetOrganization(ctx context.Context, orgName string) (*adminx.Organization, error) {
+func (f *fakeDatastoreOrgManager) GetOrganization(ctx context.Context, orgName string) (*store.AutojoinOrganization, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
 	if f.org == nil {
 		// Return default if not specified
-		return &adminx.Organization{
+		return &store.AutojoinOrganization{
 			Name:                  orgName,
 			ProbabilityMultiplier: float64Ptr(1.0),
 		}, nil
@@ -185,10 +185,10 @@ func TestServer_Lookup(t *testing.T) {
 			maxmind: &fakeMaxmind{
 				city: &geoip2.City{
 					Country: struct {
+						Names             map[string]string `maxminddb:"names"`
+						IsoCode           string            `maxminddb:"iso_code"`
 						GeoNameID         uint              `maxminddb:"geoname_id"`
 						IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-						IsoCode           string            `maxminddb:"iso_code"`
-						Names             map[string]string `maxminddb:"names"`
 					}{
 						IsoCode: "US",
 					},
@@ -236,11 +236,11 @@ func TestServer_Lookup(t *testing.T) {
 			maxmind: &fakeMaxmind{
 				city: &geoip2.City{
 					Location: struct {
-						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
+						TimeZone       string  `maxminddb:"time_zone"`
 						Latitude       float64 `maxminddb:"latitude"`
 						Longitude      float64 `maxminddb:"longitude"`
 						MetroCode      uint    `maxminddb:"metro_code"`
-						TimeZone       string  `maxminddb:"time_zone"`
+						AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
 					}{
 						Latitude:  40,
 						Longitude: -71,
@@ -319,27 +319,27 @@ func TestServer_Register(t *testing.T) {
 		// NOTE: this ridiculous declaration is needed due to anonymous structs in the geoip2 package.
 		city: &geoip2.City{
 			Country: struct {
+				Names             map[string]string `maxminddb:"names"`
+				IsoCode           string            `maxminddb:"iso_code"`
 				GeoNameID         uint              `maxminddb:"geoname_id"`
 				IsInEuropeanUnion bool              `maxminddb:"is_in_european_union"`
-				IsoCode           string            `maxminddb:"iso_code"`
-				Names             map[string]string `maxminddb:"names"`
 			}{
 				IsoCode: "US",
 			},
 			Subdivisions: []struct {
-				GeoNameID uint              `maxminddb:"geoname_id"`
-				IsoCode   string            `maxminddb:"iso_code"`
 				Names     map[string]string `maxminddb:"names"`
+				IsoCode   string            `maxminddb:"iso_code"`
+				GeoNameID uint              `maxminddb:"geoname_id"`
 			}{
 				{IsoCode: "NY", Names: map[string]string{"en": "New York"}},
 				{IsoCode: "ZZ", Names: map[string]string{"en": "fake thing"}},
 			},
 			Location: struct {
-				AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
+				TimeZone       string  `maxminddb:"time_zone"`
 				Latitude       float64 `maxminddb:"latitude"`
 				Longitude      float64 `maxminddb:"longitude"`
 				MetroCode      uint    `maxminddb:"metro_code"`
-				TimeZone       string  `maxminddb:"time_zone"`
+				AccuracyRadius uint16  `maxminddb:"accuracy_radius"`
 			}{
 				Latitude:  41,
 				Longitude: -73,
@@ -624,7 +624,7 @@ func TestServer_Register(t *testing.T) {
 				key: "fake key data",
 			},
 			dsm: &fakeDatastoreOrgManager{
-				org: &adminx.Organization{
+				org: &store.AutojoinOrganization{
 					Name:                  "bar",
 					ProbabilityMultiplier: float64Ptr(2.0),
 				},
@@ -647,7 +647,7 @@ func TestServer_Register(t *testing.T) {
 				key: "fake key data",
 			},
 			dsm: &fakeDatastoreOrgManager{
-				org: &adminx.Organization{
+				org: &store.AutojoinOrganization{
 					Name:                  "bar",
 					ProbabilityMultiplier: nil,
 				},
@@ -925,7 +925,7 @@ func TestIsValidName(t *testing.T) {
 		// Valid cases
 		{"test123", true},
 		{"abc", true},
-		
+
 		// Invalid cases - should fail with anchored regex
 		{"", false},
 		{"toolongname", false}, // > 10 chars
@@ -942,7 +942,7 @@ func TestIsValidName(t *testing.T) {
 	}
 }
 
-// TestIsValidUplink tests basic validation and security improvements  
+// TestIsValidUplink tests basic validation and security improvements
 func TestIsValidUplink(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -951,13 +951,13 @@ func TestIsValidUplink(t *testing.T) {
 		// Valid cases
 		{"10g", true},
 		{"100g", true},
-		
+
 		// Invalid cases - should fail with anchored regex
 		{"", false},
-		{"100", false},              // no 'g'
-		{"100g malicious", false},   // extra content (would pass unanchored)
-		{"malicious100g", false},    // prefix content (would pass unanchored)
-		{"100 g", false},            // space
+		{"100", false},            // no 'g'
+		{"100g malicious", false}, // extra content (would pass unanchored)
+		{"malicious100g", false},  // prefix content (would pass unanchored)
+		{"100 g", false},          // space
 	}
 
 	for _, tt := range tests {
@@ -977,16 +977,16 @@ func TestGetPorts(t *testing.T) {
 	}{
 		{"valid-ports", []string{"80", "443"}, []string{"80", "443"}},
 		{"edge-ports", []string{"1", "65535"}, []string{"1", "65535"}},
-		{"invalid-range", []string{"0", "65536"}, []string{"9990"}}, // out of range
+		{"invalid-range", []string{"0", "65536"}, []string{"9990"}},  // out of range
 		{"mixed", []string{"80", "0", "443"}, []string{"80", "443"}}, // filter invalid
-		{"no-ports", []string{}, []string{"9990"}}, // default
+		{"no-ports", []string{}, []string{"9990"}},                   // default
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("GET", "/?"+buildPortQuery(tt.ports), nil)
 			result := getPorts(req)
-			
+
 			if len(result) != len(tt.expected) {
 				t.Errorf("got %v, want %v", result, tt.expected)
 			}
