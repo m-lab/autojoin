@@ -100,10 +100,14 @@ func main() {
 
 	siteProb.Value = fmt.Sprintf("%f", probability)
 
-	// Set up health server.
+	// Set up health server. If it dies, exit so the supervisor restarts us:
+	// a silently dead /ready endpoint makes readiness checks fail forever
+	// while the process still looks healthy.
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ready", Ready)
-	go http.ListenAndServe(*hcAddr, mux)
+	go func() {
+		rtx.Must(http.ListenAndServe(*hcAddr, mux), "Failed to serve /ready endpoint")
+	}()
 
 	// Register for the first time.
 	register()
