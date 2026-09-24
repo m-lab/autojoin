@@ -78,8 +78,10 @@ func Ready(rw http.ResponseWriter, req *http.Request) {
 func main() {
 	flag.Parse()
 
-	var probability float64
-	var err error
+	var (
+		probability float64
+		err         error
+	)
 
 	if siteProb.Value == "" {
 		probability = defaultProb
@@ -121,9 +123,10 @@ func main() {
 	}
 }
 
-// Make a call to the register endpoint and write the resulting config files to
-// disk. If the node is registered already, this is effectively a no-op for the
-// autojoin API and will just touch the output files' last-modified time.
+// Call the register endpoint and write the resulting config files to disk
+// with appropriate permissions. If the node is already registered, this is
+// effectively a no-op for the autojoin API and will just touch the output
+// files' last-modified time.
 func register() {
 	// 1. Exchange API key for JWT.
 	token, err := exchangeAPIKeyForJWT(*apiKey)
@@ -153,6 +156,8 @@ func register() {
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
+	// See https://github.com/m-lab/autojoin/pull/34 for context
+	// about why we need to use an IPv4 client.
 	resp, err := ipv4HTTPClient().Do(req)
 	rtx.Must(err, "POST autojoin/v0/node/register failed")
 	defer resp.Body.Close()
@@ -178,7 +183,7 @@ func register() {
 	err = os.WriteFile(path.Join(*outputPath, hostnameFilename), []byte(r.Registration.Hostname), 0644)
 	rtx.Must(err, "Failed to write hostname to file")
 
-	// Marshall and write the heartbeat and annotation config files.
+	// Marshal and write the heartbeat and annotation config files.
 	heartbeatJSON, err := json.Marshal(heartbeat)
 	rtx.Must(err, "Failed to marshal heartbeat")
 	annotationJSON, err := json.Marshal(annotation)
@@ -189,14 +194,24 @@ func register() {
 	err = os.WriteFile(path.Join(*outputPath, annotationFilename), annotationJSON, 0644)
 	rtx.Must(err, "Failed to write annotation file")
 
+	// Service account credentials with 0600 permissions.
+	//
+	// We take care both of keys already written on disk via os.Chmod
+	// and new keys, addressed via os.WriteFile.
 	if r.Registration.Credentials == nil {
 		log.Fatalf("Registration credentials are nil:\n%s", body)
 	}
-	// Service account credentials.
 	key, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
-	rtx.Must(err, "Failed to decode service account key")
-	err = os.WriteFile(path.Join(*outputPath, serviceAccountFilename), key, 0644)
-	rtx.Must(err, "Failed to write annotation file")
+	rtx.Must(err, "Failed to base64-decode the service-account credentials string")
+	serviceAccountFilePath := path.Join(*outputPath, serviceAccountFilename)
+	rtx.Must(
+		os.WriteFile(serviceAccountFilePath, key, 0600),
+		"Failed to write the service-account-key file",
+	)
+	rtx.Must(
+		os.Chmod(serviceAccountFilePath, 0600),
+		"Failed to fix the service-account-key file perms",
+	)
 
 	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
 	registerSuccess.Store(true)
@@ -208,7 +223,7 @@ func exchangeAPIKeyForJWT(apiKey string) (string, error) {
 		"api_key": apiKey,
 	}
 	payloadBytes, err := json.Marshal(payload)
-	// This is basically impossible - the struct above is always marshallable.
+	// json.Marshal cannot fail: the map above is always marshalable.
 	rtx.Must(err, "Failed to marshal payload")
 	req, err := http.NewRequest("POST", *tkEndpoint, bytes.NewReader(payloadBytes))
 	if err != nil {
@@ -239,6 +254,10 @@ func exchangeAPIKeyForJWT(apiKey string) (string, error) {
 }
 
 // ipv4HTTPClient returns an HTTP client that always uses IPv4.
+//
+// See https://github.com/m-lab/autojoin/pull/34 for context regarding why
+// we need to use an IPv4 client for registering a node.
+//
 // Default timeouts are from https://go.dev/src/net/http/transport.go
 func ipv4HTTPClient() *http.Client {
 	return &http.Client{
