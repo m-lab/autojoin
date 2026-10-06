@@ -1,0 +1,71 @@
+# Build the official autojoin register binary and attach it to GitHub Releases.
+#
+# Publishing a release builds cmd/register for linux/amd64 and uploads it to
+# that release, together with a checksums.txt:
+#
+#   register_<tag>_linux_amd64
+#   checksums.txt
+#
+# The binary is pure Go, statically linked (CGO_ENABLED=0), and stripped
+# (-s -w); like the container image, it is stamped with main.Version.
+#
+# To attach the binary to a release that predates this workflow, dispatch it
+# with that release's tag; the workflow from the default branch then builds
+# the tagged sources:
+#
+#   gh workflow run release-binaries.yml -f tag=v0.2.13
+name: release-binaries
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag of an existing release to build and upload binaries for
+        required: true
+        type: string
+  pull_request:
+
+jobs:
+  release-binaries:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      # Empty on pull requests: the build then stamps `git describe` output
+      # and nothing is uploaded.
+      TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name || github.sha }}
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      # go version -m omits -ldflags under -trimpath, so the check looks for
+      # the version stamp in the binary itself.
+      - name: Build
+        run: |
+          version="${TAG:-$(git describe --tags --always)}"
+          bin="dist/register_${version}_linux_amd64"
+          CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.Version=${version}" \
+            -o "${bin}" ./cmd/register
+
+          file -L "${bin}" | grep "statically linked" ||
+            { echo "ERROR: ${bin} is not statically linked" >&2; exit 1; }
+          grep -qaF -- "${version}" "${bin}" ||
+            { echo "ERROR: ${bin} lacks the ${version} version stamp" >&2; exit 1; }
+          go version -m "${bin}"
+
+      - name: Upload to the release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum register_* > checksums.txt
+          cat checksums.txt
+          gh release upload "${TAG}" register_* checksums.txt --clobber --repo "${GITHUB_REPOSITORY}"
