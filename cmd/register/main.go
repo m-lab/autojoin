@@ -38,22 +38,23 @@ var (
 	// Replaced by the linker with the current version at build time.
 	Version = "0.0.0"
 
-	endpoint    = flag.String("endpoint", defaultRegisterJWTEndpoint, "Endpoint of the autojoin service")
-	tkEndpoint  = flag.String("token-endpoint", defaultTokenEndpoint, "Token-exchange endpoint")
-	apiKey      = flag.String("key", "", "API key for the autojoin service")
-	service     = flag.String("service", "ndt", "Service name to register with the autojoin service")
-	iata        = flagx.StringFile{}
-	ipv4        = flagx.StringFile{}
-	ipv6        = flagx.StringFile{}
-	machineType = flag.String("type", "", "The type of machine: physical or virtual")
-	uplink      = flag.String("uplink", "", "The speed of the uplink e.g., 1g, 10g, etc.")
-	interval    = flag.Duration("interval.expected", 1*time.Hour, "Expected registration interval")
-	intervalMin = flag.Duration("interval.min", 55*time.Minute, "Minimum registration interval")
-	intervalMax = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
-	outputPath  = flag.String("output", "", "Output folder")
-	siteProb    = flagx.StringFile{}
-	defaultProb = 1.0
-	ports       = flagx.StringArray{}
+	endpoint         = flag.String("endpoint", defaultRegisterJWTEndpoint, "Endpoint of the autojoin service")
+	tkEndpoint       = flag.String("token-endpoint", defaultTokenEndpoint, "Token-exchange endpoint")
+	apiKey           = flag.String("key", "", "API key for the autojoin service")
+	service          = flag.String("service", "ndt", "Service name to register with the autojoin service")
+	iata             = flagx.StringFile{}
+	ipv4             = flagx.StringFile{}
+	ipv6             = flagx.StringFile{}
+	machineType      = flag.String("type", "", "The type of machine: physical or virtual")
+	uplink           = flag.String("uplink", "", "The speed of the uplink e.g., 1g, 10g, etc.")
+	interval         = flag.Duration("interval.expected", 1*time.Hour, "Expected registration interval")
+	intervalMin      = flag.Duration("interval.min", 55*time.Minute, "Minimum registration interval")
+	intervalMax      = flag.Duration("interval.max", 65*time.Minute, "Maximum registration interval")
+	outputPath       = flag.String("output", "", "Output directory for public files (default: current directory)")
+	outputSecurePath = flag.String("output-secure", "", "Output directory for credentials (default: use '-output' value)")
+	siteProb         = flagx.StringFile{}
+	defaultProb      = 1.0
+	ports            = flagx.StringArray{}
 
 	hcAddr          = flag.String("healthcheck-addr", "localhost:8001", "Address to serve the /ready endpoint on")
 	registerSuccess atomic.Bool
@@ -170,6 +171,7 @@ func register() {
 		os.Exit(1)
 	}
 
+	// TODO(bassosimone): `json.Unmarshal` can fail.
 	var r v0.RegisterResponse
 	json.Unmarshal(body, &r)
 	if r.Error != nil {
@@ -201,9 +203,13 @@ func register() {
 	if r.Registration.Credentials == nil {
 		log.Fatalf("Registration credentials are nil:\n%s", body)
 	}
+	actualSecPath := *outputSecurePath
+	if actualSecPath == "" {
+		actualSecPath = *outputPath // keep backward compatibility
+	}
 	key, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
 	rtx.Must(err, "Failed to base64-decode the service-account credentials string")
-	serviceAccountFilePath := path.Join(*outputPath, serviceAccountFilename)
+	serviceAccountFilePath := path.Join(actualSecPath, serviceAccountFilename)
 	rtx.Must(
 		os.WriteFile(serviceAccountFilePath, key, 0600),
 		"Failed to write the service-account-key file",
