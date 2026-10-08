@@ -171,11 +171,26 @@ func register() {
 		os.Exit(1)
 	}
 
-	// TODO(bassosimone): `json.Unmarshal` can fail.
 	var r v0.RegisterResponse
-	json.Unmarshal(body, &r)
+	if err := json.Unmarshal(body, &r); err != nil {
+		fmt.Printf("Failed to unmarshal the register response: %s\n", err.Error())
+		os.Exit(1)
+	}
 	if r.Error != nil {
-		panic(r.Error.Title)
+		fmt.Printf("Register response failed: %s\n", r.Error.Title)
+		os.Exit(1)
+	}
+	if r.Registration == nil {
+		fmt.Printf("Missing .Registration: %+v\n", r)
+		os.Exit(1)
+	}
+	if r.Registration.Heartbeat == nil {
+		fmt.Printf("Missing .Registration.Heartbeat: %+v\n", r)
+		os.Exit(1)
+	}
+	if r.Registration.Annotation == nil {
+		fmt.Printf("Missing .Registration.Annotation: %+v\n", r)
+		os.Exit(1)
 	}
 
 	heartbeat := map[string]v2.Registration{r.Registration.Hostname: *r.Registration.Heartbeat}
