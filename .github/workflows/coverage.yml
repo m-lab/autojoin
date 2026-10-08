@@ -16,11 +16,11 @@ jobs:
       with:
         go-version: "oldstable"
 
-	# We don't have 100% coverage so let's build all the packages to
-	# have more confidence that bumping deps don't break things
-	#
-	# Remove when we have 100% coverage.
-	- run: go build -v ./...
+    # We don't have 100% coverage so let's build all the packages to
+    # have more confidence that bumping deps don't break things
+    #
+    # Remove when we have 100% coverage.
+    - run: go build -v ./...
 
     - run: go test -v -coverprofile=profile.cov ./...
 
