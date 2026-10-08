@@ -170,17 +170,39 @@ func register() {
 	body, err := io.ReadAll(resp.Body)
 	rtx.Must(err, "Failed to read response body")
 
+	// Note: below we avoid logging the body because it would potentially
+	// put the service account key into the logs. Here logging the body has
+	// some utility. The response may come from a middleware and it might
+	// contain clues about why we didn't get a 200 OK.
 	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Failed to register with autojoin service:\n%s\n", body)
-		os.Exit(1)
+		log.Fatalf("Failed to register with autojoin service:\n%s", string(body))
 	}
 
-	// TODO(bassosimone): `json.Unmarshal` can fail.
+	// Unmarshal and ensure the response is successful and well formed
+	// before starting to write files on disk.
 	var r v0.RegisterResponse
-	json.Unmarshal(body, &r)
+	err = json.Unmarshal(body, &r)
+	rtx.Must(err, "Failed to unmarshal the register response")
 	if r.Error != nil {
-		panic(r.Error.Title)
+		log.Fatalf("Register response indicates failure: %s", r.Error.Title)
 	}
+	if r.Registration == nil {
+		log.Fatal("The .Registration field is nil")
+	}
+	if r.Registration.Credentials == nil {
+		log.Fatal("The .Registration.Credentials field is nil")
+	}
+	if r.Registration.Heartbeat == nil {
+		log.Fatal("The .Registration.Heartbeat field is nil")
+	}
+	if r.Registration.Annotation == nil {
+		log.Fatal("The .Registration.Annotation field is nil")
+	}
+	if r.Registration.Hostname == "" {
+		log.Fatal("The .Registration.Hostname field is empty")
+	}
+	saKey, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
+	rtx.Must(err, "Failed to base64-decode the service-account credentials string")
 
 	heartbeat := map[string]v2.Registration{r.Registration.Hostname: *r.Registration.Heartbeat}
 	annotation := map[string]v0.ServerAnnotation{r.Registration.Hostname: *r.Registration.Annotation}
@@ -192,11 +214,13 @@ func register() {
 	// Marshal and write the heartbeat and annotation config files.
 	heartbeatJSON, err := json.Marshal(heartbeat)
 	rtx.Must(err, "Failed to marshal heartbeat")
+
 	annotationJSON, err := json.Marshal(annotation)
 	rtx.Must(err, "Failed to marshal annotation")
 
 	err = os.WriteFile(path.Join(*outputPath, heartbeatFilename), heartbeatJSON, 0644)
 	rtx.Must(err, "Failed to write heartbeat file")
+
 	err = os.WriteFile(path.Join(*outputPath, annotationFilename), annotationJSON, 0644)
 	rtx.Must(err, "Failed to write annotation file")
 
@@ -204,20 +228,17 @@ func register() {
 	//
 	// We take care both of keys already written on disk via os.Chmod
 	// and new keys, addressed via os.WriteFile.
-	if r.Registration.Credentials == nil {
-		log.Fatalf("Registration credentials are nil:\n%s", body)
-	}
 	actualSecPath := *outputSecurePath
 	if actualSecPath == "" {
 		actualSecPath = *outputPath // keep backward compatibility
 	}
-	key, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
-	rtx.Must(err, "Failed to base64-decode the service-account credentials string")
 	serviceAccountFilePath := path.Join(actualSecPath, serviceAccountFilename)
+
 	rtx.Must(
-		os.WriteFile(serviceAccountFilePath, key, 0600),
+		os.WriteFile(serviceAccountFilePath, saKey, 0600),
 		"Failed to write the service-account-key file",
 	)
+
 	rtx.Must(
 		os.Chmod(serviceAccountFilePath, 0600),
 		"Failed to fix the service-account-key file perms",
