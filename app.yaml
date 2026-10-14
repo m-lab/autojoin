@@ -3,8 +3,8 @@ env: flex
 service: autojoin
 
 runtime_config:
-  operating_system: "ubuntu22"
-  runtime_version: "1.25"
+  operating_system: "ubuntu24"
+  runtime_version: "1.26"
 
 endpoints_api_service:
   name: autojoin-dot-{{PROJECT_ID}}.appspot.com

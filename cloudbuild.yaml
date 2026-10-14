@@ -7,7 +7,7 @@ options:
 
 steps:
 # Run unit tests for environment.
-- name: golang:1.25-alpine
+- name: golang:1.26-alpine
   entrypoint: sh
   args:
   - -c
@@ -26,7 +26,7 @@ steps:
   - sed -i -e 's/{{CREDENTIALS_PROJECT}}/$_CREDENTIALS_PROJECT/g' app.yaml
   - gcloud --project $PROJECT_ID app deploy --promote app.yaml
   # After deploying the new service, deploy the openapi spec.
-  - sed -i -e 's/{{PROJECT}}/$PROJECT_ID/' -e 's/{{DEPLOYMENT}}/$PROJECT_ID/' openapi.yaml
+  - sed -i -e 's/{{PROJECT}}/$PROJECT_ID/' -e 's/{{DEPLOYMENT}}/$PROJECT_ID/' -e 's/{{CREDENTIALS_PROJECT}}/$_CREDENTIALS_PROJECT/' openapi.yaml
   - gcloud endpoints services deploy openapi.yaml
 
 # Deployment of dispatch for mlab-autojoin.
