@@ -274,6 +274,8 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 			Title:  "could not find given iata in dataset",
 			Status: http.StatusInternalServerError,
 		}
+		log.Printf("iata find failure: iata %q not in dataset (org=%s, service=%s): %v",
+			iata, param.Org, param.Service, err)
 		rw.WriteHeader(resp.Error.Status)
 		writeResponse(rw, resp)
 		return
