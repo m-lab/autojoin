@@ -29,7 +29,6 @@ var (
 	org                string
 	orgEmail           string
 	project            string
-	wifPool            string
 	credentialsProject string
 	storageOnly        bool
 )
@@ -37,7 +36,6 @@ var (
 func init() {
 	flag.StringVar(&org, "org", "", "Organization name. Must match name assigned by M-Lab")
 	flag.StringVar(&project, "project", "mlab-autojoin", "GCP project to create organization resources")
-	flag.StringVar(&wifPool, "wif-pool", "autojoin", "Workload identity pool ID whose org principal set may write to the org folder")
 	flag.StringVar(&credentialsProject, "credentials-project", "mlab-oti", "GCP project for credentials Datastore")
 	flag.StringVar(&orgEmail, "org-email", "", "Organization contact email")
 	flag.BoolVar(&storageOnly, "storage-only", false, "Only ensure the org's managed folder and binding; the org must already exist in Datastore")
@@ -61,7 +59,7 @@ func main() {
 	projectNumber := strconv.FormatInt(p.ProjectNumber, 10)
 	sc, err := storage.NewService(ctx)
 	rtx.Must(err, "failed to create storage service client")
-	fm, err := adminx.NewFolderManager(storageiface.NewStorage(sc), project, projectNumber, wifPool)
+	fm, err := adminx.NewFolderManager(storageiface.NewStorage(sc), project, projectNumber, adminx.WorkloadIdentityPoolID)
 	rtx.Must(err, "failed to create folder manager")
 
 	// Setup Datastore client for credentials (may be in a different project).

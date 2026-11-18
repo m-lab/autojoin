@@ -18,6 +18,12 @@ const (
 	orgUploadRole = "roles/storage.objectCreator"
 )
 
+// WorkloadIdentityPoolID is the ID of the workload identity pool that node
+// storage tokens are exchanged through. It is the same in every project: the
+// pool is created by terraform-support (modules/autojoin), and the autojoin
+// deployment names it in the audience it returns to nodes.
+const WorkloadIdentityPoolID = "autojoin"
+
 var (
 	// validOrgName is the strictest form an org name could take under the
 	// previous service-account flow: the org was embedded in the service account
