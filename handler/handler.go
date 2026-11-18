@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/m-lab/autojoin/internal/adminx"
 	"log"
 	"net"
 	"net/http"
@@ -45,6 +46,10 @@ type Server struct {
 	ASN        ASNFinder
 	DNS        dnsiface.Service
 	minVersion *semver.Version
+
+	// WorkloadIdentityAudience, when set, is returned to nodes in
+	// Credentials so they can use workload identity federation for GCS.
+	WorkloadIdentityAudience string
 
 	sm         ServiceAccountSecretManager
 	dnsTracker DNSTracker
@@ -307,7 +312,17 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	r := register.CreateRegisterResponse(param)
 
 	key, err := s.sm.LoadOrCreateKey(req.Context(), param.Org)
-	if err != nil {
+	switch {
+	case err == nil:
+	case s.WorkloadIdentityAudience != "" && errors.Is(err, adminx.ErrNoServiceAccount):
+		// The org has no service account, so its nodes rely on workload
+		// identity federation only. Return an empty key rather than an error.
+		// Any other error still fails the request, including a missing secret
+		// for an org that has a service account, so a node of an org that does
+		// have a key is never handed an empty one.
+		log.Printf("no service account key for org %q, returning workload identity audience only: %v", param.Org, err)
+		key = ""
+	default:
 		resp.Error = &v2.Error{
 			Type:   "load.serviceaccount.key",
 			Title:  "could not load service account key for node",
@@ -318,8 +333,11 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		writeResponse(rw, resp)
 		return
 	}
+	// NOTE: Credentials must never be nil: released register clients exit
+	// when it is.
 	r.Registration.Credentials = &v0.Credentials{
-		ServiceAccountKey: key,
+		ServiceAccountKey:        key,
+		WorkloadIdentityAudience: s.WorkloadIdentityAudience,
 	}
 
 	// Register the hostname under the organization zone.
