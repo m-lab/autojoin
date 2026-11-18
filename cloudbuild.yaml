@@ -24,6 +24,9 @@ steps:
   - sed -i -e 's/{{PROJECT_ID}}/$PROJECT_ID/g' app.yaml
   - sed -i -e 's/{{REDIS_ADDRESS}}/$_REDIS_ADDRESS/g' app.yaml
   - sed -i -e 's/{{CREDENTIALS_PROJECT}}/$_CREDENTIALS_PROJECT/g' app.yaml
+  # The workload identity provider that exchanges node storage tokens. The pool
+  # is created in each project by terraform-support (modules/autojoin).
+  - sed -i -e 's|{{WIF_AUDIENCE}}|//iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/autojoin/providers/token-exchange|g' app.yaml
   - gcloud --project $PROJECT_ID app deploy --promote app.yaml
   # After deploying the new service, deploy the openapi spec.
   - sed -i -e 's/{{PROJECT}}/$PROJECT_ID/' -e 's/{{DEPLOYMENT}}/$PROJECT_ID/' -e 's/{{CREDENTIALS_PROJECT}}/$_CREDENTIALS_PROJECT/' openapi.yaml

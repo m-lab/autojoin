@@ -39,6 +39,7 @@ var (
 	credentialsProject string
 	redisAddr          string
 	minVersion         string
+	wifAudience        string
 	iataSrc      = flagx.MustNewURL("https://raw.githubusercontent.com/ip2location/ip2location-iata-icao/1.0.25/iata-icao.csv")
 	maxmindSrc   = flagx.URL{}
 	routeviewSrc = flagx.URL{}
@@ -52,6 +53,7 @@ func init() {
 	flag.StringVar(&project, "google-cloud-project", "", "AppEngine project environment variable")
 	flag.StringVar(&credentialsProject, "credentials-project", "", "GCP project for credentials Datastore (defaults to google-cloud-project)")
 	flag.StringVar(&minVersion, "min-version", "0.0.0", "Minimum version of the client to accept")
+	flag.StringVar(&wifAudience, "wif-audience", "", "STS audience of the workload identity pool provider returned to nodes for GCS access (empty disables)")
 	flag.Var(&iataSrc, "iata-url", "URL to IATA dataset")
 	flag.Var(&maxmindSrc, "maxmind-url", "URL of a Maxmind GeoIP dataset, e.g. gs://bucket/file or file:./relativepath/file")
 	flag.Var(&routeviewSrc, "routeview-v4.url", "URL of an ip2prefix routeview IPv4 dataset, e.g. gs://bucket/file and file:./relativepath/file")
@@ -129,6 +131,7 @@ func main() {
 
 	// Create server.
 	s := handler.NewServer(project, i, mm, asn, d, gc, sm, dsm, minVersion)
+	s.WorkloadIdentityAudience = wifAudience
 	go func() {
 		// Load once.
 		s.Iata.Load(mainCtx)

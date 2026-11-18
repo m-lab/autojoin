@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/m-lab/autojoin/internal/adminx"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/googleapis/gax-go/v2/apierror"
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
@@ -21,6 +23,9 @@ import (
 	"github.com/m-lab/uuid-annotator/annotator"
 	"github.com/oschwald/geoip2-golang"
 	"google.golang.org/api/dns/v1"
+	"google.golang.org/api/googleapi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const defaultMinVersion = "v0.0.0"
@@ -136,6 +141,21 @@ func (f *fakeDatastoreOrgManager) GetOrganization(ctx context.Context, orgName s
 
 func float64Ptr(v float64) *float64 {
 	return &v
+}
+
+const testWIFAudience = "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/autojoin/providers/token-exchange"
+
+// grpcNotFoundErr returns the error shape Secret Manager (gRPC) returns for a
+// missing secret or secret version.
+func grpcNotFoundErr() error {
+	err, _ := apierror.FromError(status.Error(codes.NotFound, "fake not found"))
+	return err
+}
+
+// restNotFoundErr returns the error shape the IAM REST client returns for a
+// missing service account.
+func restNotFoundErr() error {
+	return &googleapi.Error{Code: http.StatusNotFound, Message: "fake not found"}
 }
 
 func TestServer_Lookup(t *testing.T) {
@@ -365,9 +385,12 @@ func TestServer_Register(t *testing.T) {
 		params          string
 		org             string
 		minVersion      string
+		wifAudience     string
 		wantName        string
 		wantCode        int
 		wantProbability float64
+		wantKey         string
+		wantAudience    string
 	}{
 		{
 			name:    "success",
@@ -677,11 +700,145 @@ func TestServer_Register(t *testing.T) {
 			wantCode:        http.StatusOK,
 			wantProbability: 0.5,
 		},
+		{
+			name:    "success-audience-unset",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0,
+			wantKey:         "fake key data",
+		},
+		{
+			name:    "success-audience-set-with-key",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
+			sm: &fakeSecretManager{
+				key: "fake key data",
+			},
+			wifAudience:     testWIFAudience,
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0,
+			wantKey:         "fake key data",
+			wantAudience:    testWIFAudience,
+		},
+		{
+			name:    "success-audience-set-no-service-account",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
+			sm: &fakeSecretManager{
+				err: fmt.Errorf("%w: %w", adminx.ErrNoServiceAccount, restNotFoundErr()),
+			},
+			wifAudience:     testWIFAudience,
+			minVersion:      defaultMinVersion,
+			wantName:        "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org",
+			wantCode:        http.StatusOK,
+			wantProbability: 1.0,
+			wantKey:         "",
+			wantAudience:    testWIFAudience,
+		},
+		{
+			name:    "error-audience-set-secret-not-found",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
+			sm: &fakeSecretManager{
+				// A NotFound that is not a missing service account, such as a
+				// missing secret after a key was created, must not be swallowed.
+				err: fmt.Errorf("wrapped: %w", grpcNotFoundErr()),
+			},
+			wifAudience: testWIFAudience,
+			minVersion:  defaultMinVersion,
+			wantCode:    http.StatusInternalServerError,
+		},
+		{
+			name:    "error-audience-set-key-load-unavailable",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
+			sm: &fakeSecretManager{
+				err: func() error {
+					err, _ := apierror.FromError(status.Error(codes.Unavailable, "fake unavailable"))
+					return err
+				}(),
+			},
+			wifAudience: testWIFAudience,
+			minVersion:  defaultMinVersion,
+			wantCode:    http.StatusInternalServerError,
+		},
+		{
+			name:    "error-audience-set-key-load-generic-error",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
+			sm: &fakeSecretManager{
+				err: errors.New("fake key load error"),
+			},
+			wifAudience: testWIFAudience,
+			minVersion:  defaultMinVersion,
+			wantCode:    http.StatusInternalServerError,
+		},
+		{
+			name:    "error-audience-unset-key-not-found",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
+			sm: &fakeSecretManager{
+				err: grpcNotFoundErr(),
+			},
+			minVersion: defaultMinVersion,
+			wantCode:   http.StatusInternalServerError,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := NewServer("mlab-sandbox", tt.Iata, tt.Maxmind, tt.ASN, tt.DNS, tt.Tracker, tt.sm, tt.dsm, tt.minVersion)
+			s.WorkloadIdentityAudience = tt.wifAudience
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/register"+tt.params, nil)
 
@@ -720,6 +877,26 @@ func TestServer_Register(t *testing.T) {
 			if resp.Registration.Heartbeat.Probability != tt.wantProbability {
 				t.Errorf("Register() returned wrong probability; got %f, want %f",
 					resp.Registration.Heartbeat.Probability, tt.wantProbability)
+			}
+
+			// Released register clients exit when Credentials is nil, so a
+			// successful response must always carry it.
+			if resp.Registration.Credentials == nil {
+				t.Fatalf("Register() returned nil Credentials; got %q", raw)
+			}
+			if tt.wantKey != "" || tt.wantAudience != "" {
+				if resp.Registration.Credentials.ServiceAccountKey != tt.wantKey {
+					t.Errorf("Register() returned wrong key; got %q, want %q",
+						resp.Registration.Credentials.ServiceAccountKey, tt.wantKey)
+				}
+				if resp.Registration.Credentials.WorkloadIdentityAudience != tt.wantAudience {
+					t.Errorf("Register() returned wrong audience; got %q, want %q",
+						resp.Registration.Credentials.WorkloadIdentityAudience, tt.wantAudience)
+				}
+			}
+			// Without an audience the wire format must stay exactly as before.
+			if tt.wantAudience == "" && strings.Contains(string(raw), "WorkloadIdentityAudience") {
+				t.Errorf("Register() included WorkloadIdentityAudience with no audience set; got %q", raw)
 			}
 
 		})
