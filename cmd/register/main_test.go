@@ -350,6 +350,9 @@ func TestRegister(t *testing.T) {
 			}))
 			defer tokenSrv.Close()
 			regSrv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				if got := req.URL.Query().Get("wif"); got != "true" {
+					t.Errorf("register request has wif=%q, want \"true\"", got)
+				}
 				if req.Header.Get("Authorization") != "Bearer autojoin-jwt" {
 					t.Errorf("Authorization = %q", req.Header.Get("Authorization"))
 				}

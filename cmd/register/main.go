@@ -163,6 +163,9 @@ func register() {
 	q.Add("uplink", *uplink)
 	q.Add("probability", siteProb.Value)
 	q.Add("version", Version)
+	// Declares that this client can use workload identity federation, so
+	// the server may answer without a service account key.
+	q.Add("wif", "true")
 
 	for _, port := range ports {
 		q.Add("ports", port)
@@ -215,8 +218,9 @@ func register() {
 	saKey, err := decodeCredentials(r.Registration.Credentials)
 	rtx.Must(err, "Invalid .Registration.Credentials")
 
-	// When the org uses workload identity federation, fetch the storage
-	// token now, so that no file is written unless every request succeeded.
+	// When the server supports workload identity federation it sends an
+	// audience for every org. Fetch the storage token now, so that no file is
+	// written unless every request succeeded.
 	audience := r.Registration.Credentials.WorkloadIdentityAudience
 	var storageToken string
 	if audience != "" {
