@@ -67,6 +67,10 @@ func (s *ServiceAccountsManager) CreateServiceAccount(ctx context.Context, org s
 	return account, nil
 }
 
+// ErrNoServiceAccount is returned by CreateKey when the org has no service
+// account. Such an org relies on workload identity federation only.
+var ErrNoServiceAccount = errors.New("org has no service account")
+
 // CreateKey creates and returns a key for the service account associated with org.
 func (s *ServiceAccountsManager) CreateKey(ctx context.Context, org string) (*iam.ServiceAccountKey, error) {
 	// Get Service Account, which should have been setup during Org registration.
@@ -74,7 +78,7 @@ func (s *ServiceAccountsManager) CreateKey(ctx context.Context, org string) (*ia
 	switch {
 	case errIsNotFound(err):
 		log.Printf("Service account does not exist! Org setup may be incomplete: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrNoServiceAccount, err)
 	case err != nil:
 		log.Printf("Error prevented finding service account to create key: %v", err)
 		return nil, err
