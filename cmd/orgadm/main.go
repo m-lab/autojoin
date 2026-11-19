@@ -2,8 +2,10 @@
 //
 // A new org gets a Datastore entity, a GCS managed folder autoload/v2/<org>/
 // in archive-<project> writable only by the org's federated identities, a DNS
-// zone, and an API key. With -storage-only, orgadm only ensures the managed
-// folder and its binding for an org that already exists in Datastore.
+// zone, and an API key. Each of these is created only if it is missing, so
+// running orgadm again for the same org changes nothing that already exists.
+// With -storage-only, orgadm only ensures the managed folder and its binding
+// for an org that already exists in Datastore.
 package main
 
 import (
@@ -87,7 +89,16 @@ func main() {
 	err = o.Setup(ctx, org, orgEmail)
 	rtx.Must(err, "failed to set up new organization: "+org)
 
-	// Generate and store API key for autojoin/heartbeat authentication.
+	// Generate and store an API key for autojoin/heartbeat authentication,
+	// unless the org already has one.
+	keys, err := am.GetAPIKeys(ctx, org)
+	rtx.Must(err, "failed to list API keys")
+	if len(keys) > 0 {
+		log.Println("Setup okay - org:", org)
+		log.Printf("API_KEY: not created, the org already has %d", len(keys))
+		return
+	}
+
 	apiKey, err := store.GenerateAPIKey()
 	rtx.Must(err, "failed to generate API key")
 

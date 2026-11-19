@@ -2,9 +2,11 @@ package adminx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
+	"cloud.google.com/go/datastore"
 	"github.com/m-lab/autojoin/internal/dnsname"
 	"github.com/m-lab/token-exchange/store"
 
@@ -48,19 +50,26 @@ func NewOrg(project string, folders OrgFolders, dns DNS, orgm OrganizationManage
 	}
 }
 
-// Setup should be run once on org creation to create all Google Cloud resources needed by the Autojoin API.
-//
-// NOTE: CreateOrganization overwrites an existing Datastore entity (email,
-// creation time and probability multiplier). Use SetupStorage for orgs that
-// already exist.
+// Setup ensures that all Google Cloud resources needed by the Autojoin API
+// exist for org. It is safe to run again: an org that already exists in
+// Datastore keeps its entity (email, creation time and probability
+// multiplier) unchanged, and email is ignored.
 func (o *Org) Setup(ctx context.Context, org string, email string) error {
 	if err := ValidateOrgName(org); err != nil {
 		return err
 	}
-	// Create organization in Datastore
-	err := o.orgm.CreateOrganization(ctx, org, email)
-	if err != nil {
-		return err
+	// Create the organization in Datastore, unless it is already there:
+	// CreateOrganization would overwrite the existing entity.
+	_, err := o.orgm.GetOrganization(ctx, org)
+	switch {
+	case err == nil:
+		log.Printf("organization %q already exists in Datastore: leaving it unchanged", org)
+	case errors.Is(err, datastore.ErrNoSuchEntity):
+		if err := o.orgm.CreateOrganization(ctx, org, email); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("failed to check whether organization %q exists: %w", org, err)
 	}
 	// Create the org's upload folder and grant the org's federated identities write access.
 	err = o.folders.EnsureOrgFolder(ctx, org)

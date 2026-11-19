@@ -103,7 +103,7 @@ func TestOrg_Setup(t *testing.T) {
 				getPolicy:    &storage.Policy{Etag: "e"},
 			},
 			dns:           &fakeDNS{regZone: okZone()},
-			orgm:          &fakeOrgManager{},
+			orgm:          &fakeOrgManager{getOrgErr: datastore.ErrNoSuchEntity},
 			wantCreateOrg: 1,
 			wantSetPolicy: 1,
 			wantDNS:       1,
@@ -117,11 +117,35 @@ func TestOrg_Setup(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "success-org-exists",
+			org:  testOrg,
+			folders: &fakeManagedFolders{
+				getFolderErr: notFound(),
+				getPolicy:    &storage.Policy{Etag: "e"},
+			},
+			dns:           &fakeDNS{regZone: okZone()},
+			orgm:          &fakeOrgManager{},
+			wantCreateOrg: 0,
+			wantSetPolicy: 1,
+			wantDNS:       1,
+		},
+		{
+			name:    "error-get-org",
+			org:     testOrg,
+			folders: &fakeManagedFolders{},
+			dns:     &fakeDNS{},
+			orgm: &fakeOrgManager{
+				getOrgErr: fmt.Errorf("datastore unavailable"),
+			},
+			wantErr: true,
+		},
+		{
 			name:    "error-datastore",
 			org:     testOrg,
 			folders: &fakeManagedFolders{},
 			dns:     &fakeDNS{},
 			orgm: &fakeOrgManager{
+				getOrgErr:    datastore.ErrNoSuchEntity,
 				createOrgErr: fmt.Errorf("datastore error"),
 			},
 			wantErr:       true,
@@ -136,7 +160,7 @@ func TestOrg_Setup(t *testing.T) {
 				setPolicyErr: fmt.Errorf("fake set policy error"),
 			},
 			dns:           &fakeDNS{regZone: okZone()},
-			orgm:          &fakeOrgManager{},
+			orgm:          &fakeOrgManager{getOrgErr: datastore.ErrNoSuchEntity},
 			wantErr:       true,
 			wantCreateOrg: 1,
 			wantSetPolicy: 1,
@@ -151,7 +175,7 @@ func TestOrg_Setup(t *testing.T) {
 			dns: &fakeDNS{
 				regZoneErr: fmt.Errorf("fake zone registration error"),
 			},
-			orgm:          &fakeOrgManager{},
+			orgm:          &fakeOrgManager{getOrgErr: datastore.ErrNoSuchEntity},
 			wantErr:       true,
 			wantCreateOrg: 1,
 			wantSetPolicy: 1,
@@ -168,7 +192,7 @@ func TestOrg_Setup(t *testing.T) {
 				regZone:     okZone(),
 				regSplitErr: fmt.Errorf("fake split register error"),
 			},
-			orgm:          &fakeOrgManager{},
+			orgm:          &fakeOrgManager{getOrgErr: datastore.ErrNoSuchEntity},
 			wantErr:       true,
 			wantCreateOrg: 1,
 			wantSetPolicy: 1,
@@ -182,7 +206,8 @@ func TestOrg_Setup(t *testing.T) {
 				t.Fatalf("NewFolderManager() error = %v", err)
 			}
 			o := NewOrg(testProject, fm, tt.dns, tt.orgm)
-			if err := o.Setup(context.Background(), tt.org, "testemail"); (err != nil) != tt.wantErr {
+			err = o.Setup(context.Background(), tt.org, "testemail")
+			if (err != nil) != tt.wantErr {
 				t.Errorf("Org.Setup() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if tt.orgm.createOrgCalls != tt.wantCreateOrg {
