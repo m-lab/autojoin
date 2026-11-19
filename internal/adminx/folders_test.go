@@ -143,20 +143,20 @@ func TestFolderManager_Names(t *testing.T) {
 	if got := fm.Bucket(); got != testBucket {
 		t.Errorf("Bucket() = %q, want %q", got, testBucket)
 	}
-	folder, err := fm.FolderName(testOrg)
+	folder, err := fm.folderName(testOrg)
 	if err != nil || folder != testFolder {
-		t.Errorf("FolderName() = %q, %v, want %q, nil", folder, err, testFolder)
+		t.Errorf("folderName() = %q, %v, want %q, nil", folder, err, testFolder)
 	}
-	member, err := fm.OrgMember(testOrg)
+	member, err := fm.orgMember(testOrg)
 	if err != nil || member != testMember {
-		t.Errorf("OrgMember() = %q, %v, want %q, nil", member, err, testMember)
+		t.Errorf("orgMember() = %q, %v, want %q, nil", member, err, testMember)
 	}
 	for _, org := range []string{"", "*", "foo/bar", "../foo"} {
-		if got, err := fm.FolderName(org); err == nil {
-			t.Errorf("FolderName(%q) = %q, want error", org, got)
+		if got, err := fm.folderName(org); err == nil {
+			t.Errorf("folderName(%q) = %q, want error", org, got)
 		}
-		if got, err := fm.OrgMember(org); err == nil {
-			t.Errorf("OrgMember(%q) = %q, want error", org, got)
+		if got, err := fm.orgMember(org); err == nil {
+			t.Errorf("orgMember(%q) = %q, want error", org, got)
 		}
 	}
 }

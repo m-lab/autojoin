@@ -20,7 +20,7 @@ type request struct {
 	body   string
 }
 
-func newTestStorage(t *testing.T, reqs *[]request) *storageImpl {
+func newTestStorage(t *testing.T, reqs *[]request) *Storage {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		*reqs = append(*reqs, request{method: r.Method, path: r.URL.EscapedPath(), query: r.URL.RawQuery, body: string(b)})
