@@ -17,7 +17,6 @@ require (
 	github.com/m-lab/uuid-annotator v0.5.10
 	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/prometheus/client_golang v1.25.0
-	golang.org/x/exp v0.0.0-20261007192929-f45ad48fbe92
 	google.golang.org/api v0.301.0
 	google.golang.org/grpc v1.84.0
 )
