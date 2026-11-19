@@ -17,18 +17,12 @@ type fakeIAMService struct {
 	getAcct    *iam.ServiceAccount
 	getAcctErr error
 
-	crAcct    *iam.ServiceAccount
-	crAcctErr error
-
 	key    *iam.ServiceAccountKey
 	keyErr error
 }
 
 func (f *fakeIAMService) GetServiceAccount(ctx context.Context, saName string) (*iam.ServiceAccount, error) {
 	return f.getAcct, f.getAcctErr
-}
-func (f *fakeIAMService) CreateServiceAccount(ctx context.Context, projName string, req *iam.CreateServiceAccountRequest) (*iam.ServiceAccount, error) {
-	return f.crAcct, f.crAcctErr
 }
 func (f *fakeIAMService) CreateKey(ctx context.Context, saName string, req *iam.CreateServiceAccountKeyRequest) (*iam.ServiceAccountKey, error) {
 	return f.key, f.keyErr
@@ -37,78 +31,6 @@ func (f *fakeIAMService) CreateKey(ctx context.Context, saName string, req *iam.
 func createNotFoundErr() error {
 	err, _ := apierror.FromError(status.Error(codes.NotFound, "fake not found"))
 	return err
-}
-
-func TestServiceAccountsManager_CreateServiceAccount(t *testing.T) {
-	tests := []struct {
-		name    string
-		iams    IAMService
-		org     string
-		want    *iam.ServiceAccount
-		wantErr bool
-	}{
-		{
-			name: "success-create",
-			iams: &fakeIAMService{
-				getAcctErr: createNotFoundErr(),
-				crAcct: &iam.ServiceAccount{
-					Name: "fake-name",
-				},
-			},
-			org: "foo",
-			want: &iam.ServiceAccount{
-				Name: "fake-name",
-			},
-		},
-		{
-			name: "success-found",
-			iams: &fakeIAMService{
-				getAcct: &iam.ServiceAccount{
-					Name: "fake-name",
-				},
-			},
-			org: "foo",
-			want: &iam.ServiceAccount{
-				Name: "fake-name",
-			},
-		},
-		{
-			name:    "error-org-too-long",
-			org:     "this-is-an-orgname-that-is-way-too-long",
-			wantErr: true,
-		},
-		{
-			name: "error-get-account-not-found",
-			iams: &fakeIAMService{
-				getAcctErr: createNotFoundErr(),
-				crAcctErr:  fmt.Errorf("fake create error"),
-			},
-			org:     "foo",
-			wantErr: true,
-		},
-		{
-			name: "error-get-account-other-failure",
-			iams: &fakeIAMService{
-				getAcctErr: fmt.Errorf("fake get error"),
-			},
-			org:     "foo",
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			n := NewNamer("mlab-foo")
-			s := NewServiceAccountsManager(tt.iams, n)
-			got, err := s.CreateServiceAccount(context.Background(), tt.org)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("ServiceAccountsManager.CreateServiceAccount() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("ServiceAccountsManager.CreateServiceAccount() = %v, want %v", got, tt.want)
-			}
-		})
-	}
 }
 
 func TestServiceAccountsManager_CreateKey(t *testing.T) {
