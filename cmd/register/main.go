@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -28,10 +30,16 @@ import (
 const (
 	defaultRegisterJWTEndpoint = "https://autojoin-dot-mlab-sandbox.appspot.com/autojoin/v0/node/register/token"
 	defaultTokenEndpoint       = "https://auth.mlab-sandbox.measurementlab.net/v0/token/autojoin"
+	defaultStorageTkEndpoint   = "https://auth.mlab-sandbox.measurementlab.net/v0/token/storage"
 	heartbeatFilename          = "registration.json"
 	annotationFilename         = "annotation.json"
 	serviceAccountFilename     = "service-account-autojoin.json"
 	hostnameFilename           = "hostname"
+	storageTokenFilename       = "storage-token.jwt"
+	gcsCredentialsFilename     = "gcs-credentials.json"
+
+	stsTokenURL      = "https://sts.googleapis.com/v1/token"
+	jwtSubjectTkType = "urn:ietf:params:oauth:token-type:jwt"
 )
 
 var (
@@ -55,6 +63,12 @@ var (
 	siteProb         = flagx.StringFile{}
 	defaultProb      = 1.0
 	ports            = flagx.StringArray{}
+
+	storageTkEndpoint = flag.String("storage-token-endpoint", defaultStorageTkEndpoint,
+		"Token-exchange endpoint for the GCS storage token, used when the register response carries a workload identity audience")
+	credentialSourcePath = flag.String("credential-source-path", "",
+		"Path of "+storageTokenFilename+" as seen by the credential consumers, written to credential_source.file in "+
+			gcsCredentialsFilename+" (default: absolute path of the written file)")
 
 	hcAddr          = flag.String("healthcheck-addr", "localhost:8001", "Address to serve the /ready endpoint on")
 	registerSuccess atomic.Bool
@@ -134,7 +148,7 @@ func main() {
 // files' last-modified time.
 func register() {
 	// 1. Exchange API key for JWT.
-	token, err := exchangeAPIKeyForJWT(*apiKey)
+	token, err := exchangeAPIKeyForJWT(*tkEndpoint, *apiKey)
 	rtx.Must(err, "Failed to exchange API key for JWT")
 
 	// 2. Prepare the register request.
@@ -149,6 +163,9 @@ func register() {
 	q.Add("uplink", *uplink)
 	q.Add("probability", siteProb.Value)
 	q.Add("version", Version)
+	// Declares that this client can use workload identity federation, so
+	// the server may answer without a service account key.
+	q.Add("wif", "true")
 
 	for _, port := range ports {
 		q.Add("ports", port)
@@ -189,9 +206,6 @@ func register() {
 	if r.Registration == nil {
 		log.Fatal("The .Registration field is nil")
 	}
-	if r.Registration.Credentials == nil {
-		log.Fatal("The .Registration.Credentials field is nil")
-	}
 	if r.Registration.Heartbeat == nil {
 		log.Fatal("The .Registration.Heartbeat field is nil")
 	}
@@ -201,8 +215,18 @@ func register() {
 	if r.Registration.Hostname == "" {
 		log.Fatal("The .Registration.Hostname field is empty")
 	}
-	saKey, err := base64.StdEncoding.DecodeString(r.Registration.Credentials.ServiceAccountKey)
-	rtx.Must(err, "Failed to base64-decode the service-account credentials string")
+	saKey, err := decodeCredentials(r.Registration.Credentials)
+	rtx.Must(err, "Invalid .Registration.Credentials")
+
+	// When the server supports workload identity federation it sends an
+	// audience for every org. Fetch the storage token now, so that no file is
+	// written unless every request succeeded.
+	audience := r.Registration.Credentials.WorkloadIdentityAudience
+	var storageToken string
+	if audience != "" {
+		storageToken, err = exchangeAPIKeyForJWT(*storageTkEndpoint, *apiKey)
+		rtx.Must(err, "Failed to exchange API key for the storage token")
+	}
 
 	heartbeat := map[string]v2.Registration{r.Registration.Hostname: *r.Registration.Heartbeat}
 	annotation := map[string]v0.ServerAnnotation{r.Registration.Hostname: *r.Registration.Annotation}
@@ -232,31 +256,156 @@ func register() {
 	if actualSecPath == "" {
 		actualSecPath = *outputPath // keep backward compatibility
 	}
-	serviceAccountFilePath := path.Join(actualSecPath, serviceAccountFilename)
+	// The key is empty for orgs that use workload identity federation only.
+	// Do not overwrite a key file that may already be on disk with nothing.
+	if len(saKey) > 0 {
+		serviceAccountFilePath := path.Join(actualSecPath, serviceAccountFilename)
 
-	rtx.Must(
-		os.WriteFile(serviceAccountFilePath, saKey, 0600),
-		"Failed to write the service-account-key file",
-	)
+		rtx.Must(
+			os.WriteFile(serviceAccountFilePath, saKey, 0600),
+			"Failed to write the service-account-key file",
+		)
 
-	rtx.Must(
-		os.Chmod(serviceAccountFilePath, 0600),
-		"Failed to fix the service-account-key file perms",
-	)
+		rtx.Must(
+			os.Chmod(serviceAccountFilePath, 0600),
+			"Failed to fix the service-account-key file perms",
+		)
+	}
+
+	if audience != "" {
+		rtx.Must(
+			writeStorageCredentials(actualSecPath, storageToken, audience, *credentialSourcePath),
+			"Failed to write the storage credentials",
+		)
+	}
 
 	log.Printf("Registration successful with hostname: %s", r.Registration.Hostname)
 	registerSuccess.Store(true)
 }
 
-// exchangeAPIKeyForJWT exchanges an API key for a JWT using the token-exchange service.
-func exchangeAPIKeyForJWT(apiKey string) (string, error) {
+// decodeCredentials checks the credentials of a register response and returns
+// the decoded service account key. The key is empty when the org uses
+// workload identity federation only; a response with neither a key nor an
+// audience is an error.
+func decodeCredentials(c *v0.Credentials) ([]byte, error) {
+	if c == nil {
+		return nil, errors.New("the .Registration.Credentials field is nil")
+	}
+	key, err := base64.StdEncoding.DecodeString(c.ServiceAccountKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to base64-decode the service-account credentials string: %w", err)
+	}
+	if len(key) == 0 && c.WorkloadIdentityAudience == "" {
+		return nil, errors.New("credentials contain neither a service account key nor a workload identity audience")
+	}
+	return key, nil
+}
+
+// externalAccountConfig is a Google external_account credential configuration
+// that exchanges a JWT read from a file for a federated access token.
+type externalAccountConfig struct {
+	Type             string           `json:"type"`
+	Audience         string           `json:"audience"`
+	SubjectTokenType string           `json:"subject_token_type"`
+	TokenURL         string           `json:"token_url"`
+	CredentialSource credentialSource `json:"credential_source"`
+}
+
+type credentialSource struct {
+	File   string           `json:"file"`
+	Format credentialFormat `json:"format"`
+}
+
+type credentialFormat struct {
+	Type string `json:"type"`
+}
+
+// credentialConfig returns the external_account configuration for the given
+// STS audience, reading the subject token from tokenFile.
+func credentialConfig(audience, tokenFile string) ([]byte, error) {
+	cfg := externalAccountConfig{
+		Type:             "external_account",
+		Audience:         audience,
+		SubjectTokenType: jwtSubjectTkType,
+		TokenURL:         stsTokenURL,
+		CredentialSource: credentialSource{
+			File:   tokenFile,
+			Format: credentialFormat{Type: "text"},
+		},
+	}
+	b, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	return append(b, '\n'), nil
+}
+
+// writeStorageCredentials writes the storage token and the external_account
+// configuration that points at it into dir. sourcePath, when not empty,
+// replaces the token path written to the configuration, for consumers that
+// see dir under a different mount point. Neither the token nor the
+// configuration is logged.
+func writeStorageCredentials(dir, token, audience, sourcePath string) error {
+	tokenPath := filepath.Join(dir, storageTokenFilename)
+	if sourcePath == "" {
+		abs, err := filepath.Abs(tokenPath)
+		if err != nil {
+			return err
+		}
+		sourcePath = abs
+	}
+	cfg, err := credentialConfig(audience, sourcePath)
+	if err != nil {
+		return err
+	}
+	// Write the token first, so the configuration never points at a file
+	// that does not exist yet.
+	if err := writeFileAtomic(tokenPath, []byte(token), 0600); err != nil {
+		return fmt.Errorf("failed to write %s: %w", storageTokenFilename, err)
+	}
+	if err := writeFileAtomic(filepath.Join(dir, gcsCredentialsFilename), cfg, 0600); err != nil {
+		return fmt.Errorf("failed to write %s: %w", gcsCredentialsFilename, err)
+	}
+	return nil
+}
+
+// writeFileAtomic writes data to a temporary file in the same directory as
+// name and renames it over name, so readers see either the old or the new
+// contents and never a partial file. The file has mode perm.
+func writeFileAtomic(name string, data []byte, perm os.FileMode) (err error) {
+	f, err := os.CreateTemp(filepath.Dir(name), "."+filepath.Base(name)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer func() {
+		if err != nil {
+			f.Close()
+			os.Remove(tmp)
+		}
+	}()
+	if err = f.Chmod(perm); err != nil {
+		return err
+	}
+	if _, err = f.Write(data); err != nil {
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp, name)
+}
+
+// exchangeAPIKeyForJWT exchanges an API key for a JWT at the given
+// token-exchange endpoint.
+func exchangeAPIKeyForJWT(endpoint, apiKey string) (string, error) {
 	payload := map[string]string{
 		"api_key": apiKey,
 	}
 	payloadBytes, err := json.Marshal(payload)
 	// json.Marshal cannot fail: the map above is always marshalable.
 	rtx.Must(err, "Failed to marshal payload")
-	req, err := http.NewRequest("POST", *tkEndpoint, bytes.NewReader(payloadBytes))
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(payloadBytes))
 	if err != nil {
 		return "", err
 	}
