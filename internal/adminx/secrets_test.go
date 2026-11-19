@@ -2,19 +2,19 @@ package adminx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
 	"github.com/googleapis/gax-go/v2"
+	"github.com/googleapis/gax-go/v2/apierror"
 	"google.golang.org/api/iam/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type fakeSMC struct {
-	getSec          *secretmanagerpb.Secret
-	getSecErr       error
-	createSec       *secretmanagerpb.Secret
-	createSecErr    error
 	getSecVer       *secretmanagerpb.SecretVersion
 	getSecVerErr    error
 	addSecVer       *secretmanagerpb.SecretVersion
@@ -23,12 +23,6 @@ type fakeSMC struct {
 	accessSecVerErr error
 }
 
-func (f *fakeSMC) GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error) {
-	return f.getSec, f.getSecErr
-}
-func (f *fakeSMC) CreateSecret(ctx context.Context, req *secretmanagerpb.CreateSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error) {
-	return f.createSec, f.createSecErr
-}
 func (f *fakeSMC) GetSecretVersion(ctx context.Context, req *secretmanagerpb.GetSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error) {
 	return f.getSecVer, f.getSecVerErr
 }
@@ -37,61 +31,6 @@ func (f *fakeSMC) AddSecretVersion(ctx context.Context, req *secretmanagerpb.Add
 }
 func (f *fakeSMC) AccessSecretVersion(ctx context.Context, req *secretmanagerpb.AccessSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.AccessSecretVersionResponse, error) {
 	return f.accessSecVer, f.accessSecVerErr
-}
-
-func TestSecretManager_CreateSecret(t *testing.T) {
-	tests := []struct {
-		name    string
-		namer   *Namer
-		smc     SecretManagerClient
-		org     string
-		wantErr bool
-	}{
-		{
-			name:  "success-found",
-			namer: NewNamer("mlab-foo"),
-			smc: &fakeSMC{
-				getSec: &secretmanagerpb.Secret{
-					Name: "projects/mlab-foo/secrets/fake-secret",
-				},
-			},
-		},
-		{
-			name:  "success-not-found",
-			namer: NewNamer("mlab-foo"),
-			smc: &fakeSMC{
-				getSecErr: createNotFoundErr(),
-				createSec: &secretmanagerpb.Secret{
-					Name: "projects/mlab-foo/secrets/fake-secret",
-				},
-			},
-		},
-		{
-			name:  "error-not-found-fails-to-create-secret",
-			namer: NewNamer("mlab-foo"),
-			smc: &fakeSMC{
-				getSecErr:    createNotFoundErr(),
-				createSecErr: fmt.Errorf("failed to create new secret"),
-			},
-			wantErr: true,
-		},
-		{
-			name:  "error-not-found-fails-to-create-secret",
-			namer: NewNamer("mlab-foo"),
-			smc: &fakeSMC{
-				getSecErr: fmt.Errorf("other get error"),
-			},
-			wantErr: true,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			s := NewSecretManager(tt.smc, tt.namer, nil)
-			if err := s.CreateSecret(context.Background(), tt.org); (err != nil) != tt.wantErr {
-				t.Errorf("SecretManager.CreateSecret() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
 }
 
 func TestSecretManager_LoadOrCreateKey(t *testing.T) {
@@ -150,7 +89,6 @@ func TestSecretManager_LoadOrCreateKey(t *testing.T) {
 			},
 			smc: &fakeSMC{
 				accessSecVerErr: createNotFoundErr(),
-				getSecErr:       createNotFoundErr(),
 				addSecVer: &secretmanagerpb.SecretVersion{
 					Name: "projects/mlab-foo/secrets/fake-secret/versions/lastest",
 				},
@@ -240,5 +178,20 @@ func TestSecretManager_StoreKey(t *testing.T) {
 				t.Errorf("SecretManager.StoreKey() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestSecretManager_LoadOrCreateKey_NoServiceAccount(t *testing.T) {
+	notFound, _ := apierror.FromError(status.Error(codes.NotFound, "fake not found"))
+	n := NewNamer("mlab-foo")
+	// Neither the secret nor the service account exists.
+	sam := NewServiceAccountsManager(&fakeIAMService{getAcctErr: notFound}, n)
+	s := NewSecretManager(&fakeSMC{accessSecVerErr: notFound}, n, sam)
+	key, err := s.LoadOrCreateKey(context.Background(), "foo")
+	if !errors.Is(err, ErrNoServiceAccount) {
+		t.Fatalf("LoadOrCreateKey() error = %v, want ErrNoServiceAccount", err)
+	}
+	if key != "" {
+		t.Errorf("LoadOrCreateKey() key = %q, want empty", key)
 	}
 }
