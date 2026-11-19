@@ -45,11 +45,20 @@ var (
 	ErrInvalidOrgName = errors.New("invalid org name")
 )
 
+// reservedOrgNames cannot be orgs because their folder under autoload/v2/ has
+// another owner: "tables" holds the schema files written by M-Lab.
+var reservedOrgNames = map[string]bool{
+	"tables": true,
+}
+
 // ValidateOrgName returns an error unless org is safe to embed in a managed
 // folder name and in a workload identity principal set identifier.
 func ValidateOrgName(org string) error {
 	if !validOrgName.MatchString(org) {
 		return fmt.Errorf("%w: %q must match %s", ErrInvalidOrgName, org, validOrgName.String())
+	}
+	if reservedOrgNames[org] {
+		return fmt.Errorf("%w: %q is reserved", ErrInvalidOrgName, org)
 	}
 	return nil
 }
