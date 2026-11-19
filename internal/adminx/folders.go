@@ -25,13 +25,11 @@ const (
 const WorkloadIdentityPoolID = "autojoin"
 
 var (
-	// validOrgName is the strictest form an org name could take under the
-	// previous service-account flow: the org was embedded in the service account
-	// ID "autonode-<org>", which allows at most 30 characters of lowercase
-	// letters, digits and hyphens, ending in a letter or digit. An org is also a
-	// DNS label in node hostnames, so it may not start with a hyphen. This
-	// excludes "/", "*", "." and every other character that could change the
-	// meaning of a managed folder name or an IAM principal identifier.
+	// validOrgName matches an org name, which is a DNS label in node
+	// hostnames: at most 21 lowercase letters, digits and hyphens, starting and
+	// ending with a letter or digit. This excludes "/", "*", "." and every
+	// other character that could change the meaning of a managed folder name
+	// or an IAM principal identifier.
 	validOrgName = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,19}[a-z0-9])?$`)
 
 	// validProjectNumber accepts only a decimal Google Cloud project number.
