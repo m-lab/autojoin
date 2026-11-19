@@ -316,11 +316,23 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	case err == nil:
 	case s.WorkloadIdentityAudience != "" && errors.Is(err, adminx.ErrNoServiceAccount):
 		// The org has no service account, so its nodes rely on workload
-		// identity federation only. Return an empty key rather than an error.
-		// Any other error still fails the request, including a missing secret
-		// for an org that has a service account, so a node of an org that does
-		// have a key is never handed an empty one.
-		log.Printf("no service account key for org %q, returning workload identity audience only: %v", param.Org, err)
+		// identity federation only. A client that does not declare support
+		// for it would write an empty key file and fail to upload without
+		// explanation, so tell it what is wrong instead.
+		if req.URL.Query().Get("wif") != "true" {
+			resp.Error = &v2.Error{
+				Type:   "credentials.unsupported",
+				Title:  "this organization uses workload identity federation: upgrade the register client",
+				Status: http.StatusForbidden,
+			}
+			rw.WriteHeader(resp.Error.Status)
+			writeResponse(rw, resp)
+			return
+		}
+		// Return an empty key rather than an error. Any other error still
+		// fails the request, including a missing secret for an org that has a
+		// service account, so a node of an org that does have a key is never
+		// handed an empty one.
 		key = ""
 	default:
 		resp.Error = &v2.Error{

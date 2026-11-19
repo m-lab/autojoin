@@ -127,6 +127,11 @@ paths:
           required: false
           description: Version of the client software.
         - in: query
+          name: wif
+          type: string
+          required: false
+          description: Set to "true" by clients that can use workload identity federation for GCS access.
+        - in: query
           name: ports
           type: array
           items:
@@ -193,6 +198,11 @@ paths:
           type: string
           required: false
           description: Version of the client software.
+        - in: query
+          name: wif
+          type: string
+          required: false
+          description: Set to "true" by clients that can use workload identity federation for GCS access.
         - in: query
           name: ports
           type: array

@@ -742,7 +742,7 @@ func TestServer_Register(t *testing.T) {
 		},
 		{
 			name:    "success-audience-set-no-service-account",
-			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&probability=1.0&ports=9990&type=physical&uplink=10g&wif=true",
 			org:     "bar",
 			Iata:    iataFinder,
 			Maxmind: maxmind,
@@ -760,6 +760,25 @@ func TestServer_Register(t *testing.T) {
 			wantProbability: 1.0,
 			wantKey:         "",
 			wantAudience:    testWIFAudience,
+		},
+		{
+			// A client that cannot use workload identity federation would
+			// write an empty key file and fail later without explanation.
+			name:    "error-audience-set-no-service-account-client-without-wif",
+			params:  "?service=foo&iata=lga&ipv4=192.168.0.1&type=physical&uplink=10g",
+			org:     "bar",
+			Iata:    iataFinder,
+			Maxmind: maxmind,
+			ASN:     fakeASN,
+			DNS:     &fakeDNS{},
+			Tracker: &fakeStatusTracker{},
+			dsm:     &fakeDatastoreOrgManager{},
+			sm: &fakeSecretManager{
+				err: fmt.Errorf("%w: %w", adminx.ErrNoServiceAccount, restNotFoundErr()),
+			},
+			wifAudience: testWIFAudience,
+			minVersion:  defaultMinVersion,
+			wantCode:    http.StatusForbidden,
 		},
 		{
 			name:    "error-audience-set-secret-not-found",
