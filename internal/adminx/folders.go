@@ -104,18 +104,18 @@ func (f *FolderManager) Bucket() string {
 	return "archive-" + f.Project
 }
 
-// FolderName returns the managed folder name for org, e.g. autoload/v2/foo/.
+// folderName returns the managed folder name for org, e.g. autoload/v2/foo/.
 // The trailing slash keeps one org's folder from being a prefix of another's.
-func (f *FolderManager) FolderName(org string) (string, error) {
+func (f *FolderManager) folderName(org string) (string, error) {
 	if err := ValidateOrgName(org); err != nil {
 		return "", err
 	}
 	return "autoload/v2/" + org + "/", nil
 }
 
-// OrgMember returns the IAM principal set of all federated identities whose
+// orgMember returns the IAM principal set of all federated identities whose
 // "org" attribute equals org.
-func (f *FolderManager) OrgMember(org string) (string, error) {
+func (f *FolderManager) orgMember(org string) (string, error) {
 	if err := ValidateOrgName(org); err != nil {
 		return "", err
 	}
@@ -129,11 +129,11 @@ func (f *FolderManager) OrgMember(org string) (string, error) {
 // bindings are preserved, and the policy is not written when the binding is
 // already present.
 func (f *FolderManager) EnsureOrgFolder(ctx context.Context, org string) error {
-	folder, err := f.FolderName(org)
+	folder, err := f.folderName(org)
 	if err != nil {
 		return err
 	}
-	member, err := f.OrgMember(org)
+	member, err := f.orgMember(org)
 	if err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func (f *FolderManager) EnsureOrgFolder(ctx context.Context, org string) error {
 		return err
 	}
 	if curr == nil {
-		return fmt.Errorf("empty IAM policy returned for gs://%s/%s", bucket, folder)
+		return fmt.Errorf("nil IAM policy returned for gs://%s/%s", bucket, folder)
 	}
 	bindings, changed := addUnconditionalMember(curr.Bindings, orgUploadRole, member)
 	if !changed {

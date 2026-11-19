@@ -11,7 +11,6 @@ package main
 import (
 	"context"
 	"flag"
-	"google.golang.org/api/cloudresourcemanager/v1"
 	"log"
 	"strconv"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
 	"github.com/m-lab/go/rtx"
 	"github.com/m-lab/token-exchange/store"
+	"google.golang.org/api/cloudresourcemanager/v1"
 	"google.golang.org/api/dns/v1"
 	"google.golang.org/api/storage/v1"
 )
