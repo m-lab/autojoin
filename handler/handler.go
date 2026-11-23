@@ -362,6 +362,20 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 
 	resp := v0.DeleteResponse{}
+
+	// Get the organization from the context.
+	org, ok := req.Context().Value(orgContextKey).(string)
+	if !ok {
+		resp.Error = &v2.Error{
+			Type:   "auth.context",
+			Title:  "missing organization in context",
+			Status: http.StatusInternalServerError,
+		}
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
 	hostname := req.URL.Query().Get("hostname")
 	name, err := host.Parse(hostname)
 	if err != nil {
@@ -372,6 +386,18 @@ func (s *Server) Delete(rw http.ResponseWriter, req *http.Request) {
 			Status: http.StatusBadRequest,
 		}
 		log.Println("dns delete (parse) failure:", err)
+		rw.WriteHeader(resp.Error.Status)
+		writeResponse(rw, resp)
+		return
+	}
+
+	if name.Org != org {
+		resp.Error = &v2.Error{
+			Type:   "auth.org",
+			Title:  "hostname does not belong to caller's organization",
+			Status: http.StatusForbidden,
+		}
+		log.Printf("dns delete forbidden: org %q tried to delete hostname of org %q", org, name.Org)
 		rw.WriteHeader(resp.Error.Status)
 		writeResponse(rw, resp)
 		return

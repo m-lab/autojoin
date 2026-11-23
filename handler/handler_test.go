@@ -732,11 +732,14 @@ func TestServer_Delete(t *testing.T) {
 		DNS      dnsiface.Service
 		Tracker  DNSTracker
 		qs       string
+		org      string
+		noOrg    bool
 		wantName string
 		wantCode int
 	}{
 		{
 			name:     "success",
+			org:      "mlab",
 			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
 			wantCode: http.StatusOK,
 			DNS:      &fakeDNS{},
@@ -744,18 +747,21 @@ func TestServer_Delete(t *testing.T) {
 		},
 		{
 			name:     "error-hostname-empty",
+			org:      "mlab",
 			qs:       "?hostname=",
 			wantCode: http.StatusBadRequest,
 			Tracker:  &fakeStatusTracker{},
 		},
 		{
 			name:     "error-hostname-invalid",
+			org:      "mlab",
 			qs:       "?hostname=this-is-not-valid.foo",
 			wantCode: http.StatusBadRequest,
 			Tracker:  &fakeStatusTracker{},
 		},
 		{
 			name:     "error-request-failed",
+			org:      "mlab",
 			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
 			wantCode: http.StatusInternalServerError,
 			DNS:      &fakeDNS{getErr: errors.New("fake error")},
@@ -764,10 +770,24 @@ func TestServer_Delete(t *testing.T) {
 		{
 			name: "error-tracker-failed",
 
+			org:      "mlab",
 			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
 			wantCode: http.StatusInternalServerError,
 			DNS:      &fakeDNS{},
 			Tracker:  &fakeStatusTracker{deleteErr: errors.New("delete failed")},
+		},
+		{
+			// DNS and Tracker are nil: any call to them would panic.
+			name:     "error-other-organization",
+			org:      "other",
+			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
+			wantCode: http.StatusForbidden,
+		},
+		{
+			name:     "error-missing-organization",
+			noOrg:    true,
+			qs:       "?hostname=ndt-lga3269-4f20bd89.mlab.sandbox.measurement-lab.org",
+			wantCode: http.StatusInternalServerError,
 		},
 	}
 	for _, tt := range tests {
@@ -775,6 +795,9 @@ func TestServer_Delete(t *testing.T) {
 			s := NewServer("mlab-sandbox", nil, nil, nil, tt.DNS, tt.Tracker, nil, nil, defaultMinVersion)
 			rw := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodPost, "/autojoin/v0/node/delete"+tt.qs, nil)
+			if !tt.noOrg {
+				req = req.WithContext(context.WithValue(req.Context(), orgContextKey, tt.org))
+			}
 			s.Delete(rw, req)
 
 			if rw.Code != tt.wantCode {
