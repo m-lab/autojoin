@@ -40,8 +40,8 @@ func TestStorage(t *testing.T) {
 	s := newTestStorage(t, &reqs)
 	ctx := context.Background()
 	const bucket = "archive-mlab-foo"
-	const folder = "autoload/v2/foobar/"
-	const escaped = "/storage/v1/b/archive-mlab-foo/managedFolders/autoload%2Fv2%2Ffoobar%2F"
+	const folder = "autoload/v3/org=foobar/"
+	const escaped = "/storage/v1/b/archive-mlab-foo/managedFolders/autoload%2Fv3%2Forg%3Dfoobar%2F"
 
 	if _, err := s.GetManagedFolder(ctx, bucket, folder); err != nil {
 		t.Fatalf("GetManagedFolder() error = %v", err)

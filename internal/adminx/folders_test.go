@@ -17,7 +17,7 @@ const (
 	testPool          = "autojoin"
 	testOrg           = "foobar"
 	testBucket        = "archive-mlab-foo"
-	testFolder        = "autoload/v2/foobar/"
+	testFolder        = "autoload/v3/org=foobar/"
 	testMember        = "principalSet://iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/autojoin/attribute.org/foobar"
 )
 
@@ -93,8 +93,6 @@ func TestValidateOrgName(t *testing.T) {
 	}
 	invalid := []string{
 		"", "*", "foo/bar", "foo/", "/foo", "..", "../foo", "foo*", "Foo", "FOO",
-		// Reserved: autoload/v2/tables/ holds the schema files written by M-Lab.
-		"tables",
 		"-foo", "foo-", "foo_bar", "foo.bar", "foo bar", " foo", "foo\n", "foo%2f",
 		"fóo", "abcdefghijklmnopqrstuv", "foo:bar", "foo@bar",
 	}

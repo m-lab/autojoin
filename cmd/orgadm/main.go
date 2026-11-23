@@ -1,6 +1,6 @@
 // orgadm creates the Google Cloud resources for an Autojoin organization.
 //
-// A new org gets a Datastore entity, a GCS managed folder autoload/v2/<org>/
+// A new org gets a Datastore entity, a GCS managed folder autoload/v3/org=<org>/
 // in archive-<project> writable only by the org's federated identities, a DNS
 // zone, and an API key. Each of these is created only if it is missing, so
 // running orgadm again for the same org changes nothing that already exists.
