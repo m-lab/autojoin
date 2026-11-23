@@ -2,6 +2,7 @@ package adminx
 
 import (
 	"context"
+	"errors"
 	"log"
 
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
@@ -10,8 +11,6 @@ import (
 
 // SecretManagerClient is an interface describing operations on the Google Cloud Secret Manager API.
 type SecretManagerClient interface {
-	GetSecret(ctx context.Context, req *secretmanagerpb.GetSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
-	CreateSecret(ctx context.Context, req *secretmanagerpb.CreateSecretRequest, opts ...gax.CallOption) (*secretmanagerpb.Secret, error)
 	GetSecretVersion(ctx context.Context, req *secretmanagerpb.GetSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error)
 	AddSecretVersion(ctx context.Context, req *secretmanagerpb.AddSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.SecretVersion, error)
 	AccessSecretVersion(ctx context.Context, req *secretmanagerpb.AccessSecretVersionRequest, opts ...gax.CallOption) (*secretmanagerpb.AccessSecretVersionResponse, error)
@@ -35,43 +34,6 @@ func NewSecretManager(smc SecretManagerClient, n *Namer, sam *ServiceAccountsMan
 	}
 }
 
-// CreateSecret creates a new secret for the given org using the naming
-// convention of the instance Namer.
-func (s *SecretManager) CreateSecret(ctx context.Context, org string) error {
-	// Create a SecretManager secret for this organization.
-	// Versions are created separately.
-	getReq := &secretmanagerpb.GetSecretRequest{
-		Name: s.Namer.GetSecretName(org),
-	}
-	secret, err := s.smc.GetSecret(ctx, getReq)
-	switch {
-	case errIsNotFound(err):
-		// Create the request to create the secret.
-		log.Printf("Creating secret: %q", s.Namer.GetSecretID(org))
-		crReq := &secretmanagerpb.CreateSecretRequest{
-			Parent:   s.Namer.GetProjectsName(),
-			SecretId: s.Namer.GetSecretID(org),
-			Secret: &secretmanagerpb.Secret{
-				Replication: &secretmanagerpb.Replication{
-					Replication: &secretmanagerpb.Replication_Automatic_{
-						Automatic: &secretmanagerpb.Replication_Automatic{},
-					},
-				},
-			},
-		}
-		secret, err = s.smc.CreateSecret(ctx, crReq)
-		if err != nil {
-			log.Printf("Creating secret failed for %q: %v", s.Namer.GetSecretName(org), err)
-			return err
-		}
-	case err != nil:
-		log.Printf("Get secret failed for %q: %v", s.Namer.GetSecretName(org), err)
-		return err
-	}
-	log.Println("Found secret:", secret.Name)
-	return nil
-}
-
 // LoadOrCreateKey is a single method to either create and store a key or
 // read an existing key from SecretManager.
 func (s *SecretManager) LoadOrCreateKey(ctx context.Context, org string) (string, error) {
@@ -80,7 +42,11 @@ func (s *SecretManager) LoadOrCreateKey(ctx context.Context, org string) (string
 	case errIsNotFound(err):
 		k, err := s.sam.CreateKey(ctx, org)
 		if err != nil {
-			log.Printf("CreateKey failed for %q: %v", s.Namer.GetServiceAccountName(org), err)
+			// An org without a service account is expected: it uses workload
+			// identity federation. The caller decides what to do about it.
+			if !errors.Is(err, ErrNoServiceAccount) {
+				log.Printf("CreateKey failed for %q: %v", s.Namer.GetServiceAccountName(org), err)
+			}
 			return "", err
 		}
 		// Store the new key in secret manager.

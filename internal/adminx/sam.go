@@ -15,7 +15,6 @@ import (
 // IAMService defines the interface used to access the Google Cloud IAM Service.
 type IAMService interface {
 	GetServiceAccount(ctx context.Context, saName string) (*iam.ServiceAccount, error)
-	CreateServiceAccount(ctx context.Context, projName string, req *iam.CreateServiceAccountRequest) (*iam.ServiceAccount, error)
 	CreateKey(ctx context.Context, saName string, req *iam.CreateServiceAccountKeyRequest) (*iam.ServiceAccountKey, error)
 }
 
@@ -33,39 +32,9 @@ func NewServiceAccountsManager(ic IAMService, n *Namer) *ServiceAccountsManager 
 	}
 }
 
-// CreateServiceAccount returns a new service account for the given org. If the
-// SA already exists, the existing resource is returned.
-func (s *ServiceAccountsManager) CreateServiceAccount(ctx context.Context, org string) (*iam.ServiceAccount, error) {
-	id := s.Namer.GetServiceAccountID(org)
-	if len(id) > 30 {
-		log.Printf("Service account id is too long: %q", s.Namer.GetServiceAccountID(org))
-		return nil, fmt.Errorf("CreateServiceAccount: service account id is too long: %q", id)
-	}
-
-	// Make sure that a Service Account exists for this organization.
-	// NOTE: Keys for this Service Account are created separately.
-	account, err := s.iams.GetServiceAccount(ctx, s.Namer.GetServiceAccountName(org))
-	switch {
-	case errIsNotFound(err):
-		log.Printf("Creating service account: %q", s.Namer.GetServiceAccountName(org))
-		req := &iam.CreateServiceAccountRequest{
-			AccountId: id,
-			ServiceAccount: &iam.ServiceAccount{
-				Description: "Access to GCS for measurement data for " + org,
-				DisplayName: id,
-			},
-		}
-		account, err = s.iams.CreateServiceAccount(ctx, s.Namer.GetProjectsName(), req)
-		if err != nil {
-			log.Printf("CreateServiceAccount failed for %q: %v", s.Namer.GetServiceAccountName(org), err)
-			return nil, fmt.Errorf("CreateServiceAccount: %w", err)
-		}
-	case err != nil:
-		log.Printf("CreateServiceAccount failed to lookup %q: %v", s.Namer.GetServiceAccountName(org), err)
-		return nil, err
-	}
-	return account, nil
-}
+// ErrNoServiceAccount is returned by CreateKey when the org has no service
+// account. Such an org relies on workload identity federation only.
+var ErrNoServiceAccount = errors.New("org has no service account")
 
 // CreateKey creates and returns a key for the service account associated with org.
 func (s *ServiceAccountsManager) CreateKey(ctx context.Context, org string) (*iam.ServiceAccountKey, error) {
@@ -73,8 +42,7 @@ func (s *ServiceAccountsManager) CreateKey(ctx context.Context, org string) (*ia
 	account, err := s.iams.GetServiceAccount(ctx, s.Namer.GetServiceAccountName(org))
 	switch {
 	case errIsNotFound(err):
-		log.Printf("Service account does not exist! Org setup may be incomplete: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrNoServiceAccount, err)
 	case err != nil:
 		log.Printf("Error prevented finding service account to create key: %v", err)
 		return nil, err
