@@ -156,8 +156,8 @@ func TestWriteStorageCredentials(t *testing.T) {
 		},
 		{
 			name:       "override-source-path",
-			sourcePath: "/autonode/storage-token.jwt",
-			wantSource: func(string) string { return "/autonode/storage-token.jwt" },
+			sourcePath: "/autonode",
+			wantSource: func(string) string { return "/autonode/" + storageTokenFilename },
 		},
 	}
 	for _, tt := range tests {
@@ -274,7 +274,7 @@ func TestRegister(t *testing.T) {
 		{name: "key-and-audience", key: saKey, audience: testAudience, wantSAFile: true, wantStorage: true},
 		{name: "audience-only", audience: testAudience, wantStorage: true},
 		{name: "audience-only-keeps-existing-key-file", audience: testAudience, wantStorage: true, preexistingSA: true, wantSAFileKept: true},
-		{name: "audience-only-source-override", audience: testAudience, wantStorage: true, sourcePathFlag: "/autonode/storage-token.jwt", wantSourceInCfg: "/autonode/storage-token.jwt"},
+		{name: "audience-only-source-override", audience: testAudience, wantStorage: true, sourcePathFlag: "/autonode", wantSourceInCfg: "/autonode/" + storageTokenFilename},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

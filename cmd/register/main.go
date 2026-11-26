@@ -67,8 +67,8 @@ var (
 	storageTkEndpoint = flag.String("storage-token-endpoint", defaultStorageTkEndpoint,
 		"Token-exchange endpoint for the GCS storage token, used when the register response carries a workload identity audience")
 	credentialSourcePath = flag.String("credential-source-path", "",
-		"Path of "+storageTokenFilename+" as seen by the credential consumers, written to credential_source.file in "+
-			gcsCredentialsFilename+" (default: absolute path of the written file)")
+		"Directory holding "+storageTokenFilename+" as seen by the credential consumers, used for credential_source.file in "+
+			gcsCredentialsFilename+" (default: absolute path of the secure output directory)")
 
 	hcAddr          = flag.String("healthcheck-addr", "localhost:8001", "Address to serve the /ready endpoint on")
 	registerSuccess atomic.Bool
@@ -342,19 +342,19 @@ func credentialConfig(audience, tokenFile string) ([]byte, error) {
 
 // writeStorageCredentials writes the storage token and the external_account
 // configuration that points at it into dir. sourcePath, when not empty,
-// replaces the token path written to the configuration, for consumers that
-// see dir under a different mount point. Neither the token nor the
+// replaces dir in the token path written to the configuration, for consumers
+// that see dir under a different mount point. Neither the token nor the
 // configuration is logged.
 func writeStorageCredentials(dir, token, audience, sourcePath string) error {
 	tokenPath := filepath.Join(dir, storageTokenFilename)
 	if sourcePath == "" {
-		abs, err := filepath.Abs(tokenPath)
+		abs, err := filepath.Abs(dir)
 		if err != nil {
 			return err
 		}
 		sourcePath = abs
 	}
-	cfg, err := credentialConfig(audience, sourcePath)
+	cfg, err := credentialConfig(audience, filepath.Join(sourcePath, storageTokenFilename))
 	if err != nil {
 		return err
 	}
