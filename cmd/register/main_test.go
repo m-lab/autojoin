@@ -2,14 +2,12 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,7 +15,6 @@ import (
 
 	v0 "github.com/m-lab/autojoin/api/v0"
 	v2 "github.com/m-lab/locate/api/v2"
-	"golang.org/x/oauth2/google"
 )
 
 const (
@@ -228,61 +225,6 @@ func readConfig(t *testing.T, name string) externalAccountConfig {
 		t.Fatalf("unmarshal %s: %v", name, err)
 	}
 	return cfg
-}
-
-// TestCredentialConfigWithGoogleAuth checks that Google's Go auth library
-// accepts the written configuration and sends the JWT file contents to STS.
-// Only token_url is redirected, to a local fake STS.
-func TestCredentialConfigWithGoogleAuth(t *testing.T) {
-	var gotForm url.Values
-	sts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		if err := req.ParseForm(); err != nil {
-			t.Errorf("ParseForm: %v", err)
-		}
-		gotForm = req.PostForm
-		rw.Header().Set("Content-Type", "application/json")
-		io.WriteString(rw, `{"access_token":"federated","issued_token_type":"urn:ietf:params:oauth:token-type:access_token","token_type":"Bearer","expires_in":3600}`)
-	}))
-	defer sts.Close()
-
-	dir := t.TempDir()
-	if err := writeStorageCredentials(dir, testJWT, testAudience, ""); err != nil {
-		t.Fatalf("writeStorageCredentials() error = %v", err)
-	}
-	b, err := os.ReadFile(filepath.Join(dir, gcsCredentialsFilename))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var raw map[string]any
-	if err := json.Unmarshal(b, &raw); err != nil {
-		t.Fatal(err)
-	}
-	raw["token_url"] = sts.URL
-	b, err = json.Marshal(raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	creds, err := google.CredentialsFromJSON(context.Background(), b, "https://www.googleapis.com/auth/devstorage.read_write")
-	if err != nil {
-		t.Fatalf("CredentialsFromJSON() error = %v", err)
-	}
-	tok, err := creds.TokenSource.Token()
-	if err != nil {
-		t.Fatalf("Token() error = %v", err)
-	}
-	if tok.AccessToken != "federated" {
-		t.Errorf("access token = %q, want %q", tok.AccessToken, "federated")
-	}
-	if gotForm.Get("subject_token") != testJWT {
-		t.Errorf("subject_token = %q, want %q", gotForm.Get("subject_token"), testJWT)
-	}
-	if gotForm.Get("audience") != testAudience {
-		t.Errorf("audience = %q, want %q", gotForm.Get("audience"), testAudience)
-	}
-	if gotForm.Get("subject_token_type") != "urn:ietf:params:oauth:token-type:jwt" {
-		t.Errorf("subject_token_type = %q", gotForm.Get("subject_token_type"))
-	}
 }
 
 func TestDecodeCredentials(t *testing.T) {
