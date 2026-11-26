@@ -53,8 +53,15 @@ type ServerAnnotation struct {
 // Credentials contains public or private key data needed for node operations.
 type Credentials struct {
 	// ServiceAccountKey contains the base64 encoded service account key for use
-	// by the node after registration.
+	// by the node after registration. It is empty when the org has no service
+	// account and nodes must use WorkloadIdentityAudience instead.
 	ServiceAccountKey string
+
+	// WorkloadIdentityAudience is the Security Token Service audience of the
+	// workload identity pool provider that accepts the org's storage token.
+	// When set, nodes should write an external_account credential
+	// configuration for GCS access.
+	WorkloadIdentityAudience string `json:",omitempty"`
 }
 
 // Registration is returned for a successful registration request.

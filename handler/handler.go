@@ -15,6 +15,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	v0 "github.com/m-lab/autojoin/api/v0"
 	"github.com/m-lab/autojoin/iata"
+	"github.com/m-lab/autojoin/internal/adminx"
 	"github.com/m-lab/autojoin/internal/dnsname"
 	"github.com/m-lab/autojoin/internal/dnsx"
 	"github.com/m-lab/autojoin/internal/dnsx/dnsiface"
@@ -45,6 +46,10 @@ type Server struct {
 	ASN        ASNFinder
 	DNS        dnsiface.Service
 	minVersion *semver.Version
+
+	// WorkloadIdentityAudience, when set, is returned to nodes in
+	// Credentials so they can use workload identity federation for GCS.
+	WorkloadIdentityAudience string
 
 	sm         ServiceAccountSecretManager
 	dnsTracker DNSTracker
@@ -307,7 +312,29 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 	r := register.CreateRegisterResponse(param)
 
 	key, err := s.sm.LoadOrCreateKey(req.Context(), param.Org)
-	if err != nil {
+	switch {
+	case err == nil:
+	case s.WorkloadIdentityAudience != "" && errors.Is(err, adminx.ErrNoServiceAccount):
+		// The org has no service account, so its nodes rely on workload
+		// identity federation only. A client that does not declare support
+		// for it would write an empty key file and fail to upload without
+		// explanation, so tell it what is wrong instead.
+		if req.URL.Query().Get("wif") != "true" {
+			resp.Error = &v2.Error{
+				Type:   "credentials.unsupported",
+				Title:  "this organization uses workload identity federation: upgrade the register client",
+				Status: http.StatusForbidden,
+			}
+			rw.WriteHeader(resp.Error.Status)
+			writeResponse(rw, resp)
+			return
+		}
+		// Return an empty key rather than an error. Any other error still
+		// fails the request, including a missing secret for an org that has a
+		// service account, so a node of an org that does have a key is never
+		// handed an empty one.
+		key = ""
+	default:
 		resp.Error = &v2.Error{
 			Type:   "load.serviceaccount.key",
 			Title:  "could not load service account key for node",
@@ -318,8 +345,11 @@ func (s *Server) Register(rw http.ResponseWriter, req *http.Request) {
 		writeResponse(rw, resp)
 		return
 	}
+	// NOTE: Credentials must never be nil: released register clients exit
+	// when it is.
 	r.Registration.Credentials = &v0.Credentials{
-		ServiceAccountKey: key,
+		ServiceAccountKey:        key,
+		WorkloadIdentityAudience: s.WorkloadIdentityAudience,
 	}
 
 	// Register the hostname under the organization zone.

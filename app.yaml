@@ -36,5 +36,7 @@ env_variables:
   ROUTEVIEW_V4_URL: gs://downloader-{{PROJECT_ID}}/RouteViewIPv4/current/routeview.pfx2as.gz
   REDIS_ADDRESS: {{REDIS_ADDRESS}}
   CREDENTIALS_PROJECT: {{CREDENTIALS_PROJECT}}
+  # The workload identity provider of this project, filled in by cloudbuild.yaml.
+  WIF_AUDIENCE: "{{WIF_AUDIENCE}}"
   GC_TTL: 24h
 
