@@ -116,6 +116,11 @@ func (d *Manager) Delete(ctx context.Context, hostname string) (*dns.Change, err
 			appendDeletions(chg, rr, hostname)
 		}
 	}
+	if len(chg.Deletions) == 0 {
+		// Nothing to delete: the records (or the zone) are already gone.
+		// Without any actions, the ChangeCreate will fail.
+		return nil, nil
+	}
 	return d.Service.ChangeCreate(ctx, d.Project, d.Zone, chg)
 }
 

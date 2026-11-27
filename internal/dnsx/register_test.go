@@ -262,9 +262,28 @@ func TestManager_Delete(t *testing.T) {
 			},
 		},
 		{
-			name:     "error-change",
+			// Both lookups return not found, so there is nothing to delete.
+			// ChangeCreate must not be called: the fake returns an error for
+			// any call here, which would fail this case.
+			name:     "success-not-found",
 			zone:     "sandbox-measurement-lab-org",
 			service:  &fakeDNS{getErr: &googleapi.Error{Code: 404}, chgErr: errors.New("err")},
+			hostname: "foo.sandbox.measurement-lab.org",
+		},
+		{
+			name: "error-change",
+			zone: "sandbox-measurement-lab-org",
+			service: &fakeDNS{
+				record: []*dns.ResourceRecordSet{
+					{
+						Name:    "foo.sandbox.measurement-lab.org",
+						Type:    "A",
+						Ttl:     300,
+						Rrdatas: []string{"192.168.0.1"},
+					},
+				},
+				chgErr: errors.New("err"),
+			},
 			hostname: "foo.sandbox.measurement-lab.org",
 			wantErr:  true,
 		},
