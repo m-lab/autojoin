@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/m-lab/autojoin/internal/metrics"
 	"github.com/m-lab/locate/memorystore"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"google.golang.org/api/dns/v1"
 )
 
@@ -177,5 +179,41 @@ func TestGarbageCollector_Delete(t *testing.T) {
 	// Check that the error was propagated.
 	if err == nil {
 		t.Errorf("Delete() did not propagate errors.")
+	}
+}
+
+func TestGarbageCollector_MemorystoreDeleteMetrics(t *testing.T) {
+	const host = "foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org"
+	tests := []struct {
+		name       string
+		delErr     error
+		wantErrInc float64
+		wantOKInc  float64
+	}{
+		{name: "success", wantOKInc: 1},
+		{name: "failure", delErr: errors.New("fake del error"), wantErrInc: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fakeMSClient := &fakeMemorystoreClient[Status]{
+				delErr: tt.delErr,
+				m: map[string]Status{
+					host: {DNS: &DNSRecord{LastUpdate: 0}},
+				},
+			}
+			gc := NewGarbageCollector(&fakeDNS{}, "test-project", fakeMSClient, 3*time.Hour, 1*time.Hour)
+			okCtr := metrics.GarbageCollectorOperations.WithLabelValues("memorystore_delete", "success")
+			errCtr := metrics.GarbageCollectorOperations.WithLabelValues("memorystore_delete", "error")
+			okBefore, errBefore := testutil.ToFloat64(okCtr), testutil.ToFloat64(errCtr)
+
+			gc.List()
+
+			if got := testutil.ToFloat64(okCtr) - okBefore; got != tt.wantOKInc {
+				t.Errorf("memorystore_delete success incremented by %v; want %v", got, tt.wantOKInc)
+			}
+			if got := testutil.ToFloat64(errCtr) - errBefore; got != tt.wantErrInc {
+				t.Errorf("memorystore_delete error incremented by %v; want %v", got, tt.wantErrInc)
+			}
+		})
 	}
 }
