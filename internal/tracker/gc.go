@@ -153,6 +153,7 @@ func (gc *GarbageCollector) checkAndRemoveExpired() ([]string, [][]string, error
 			if err != nil {
 				log.Printf("Failed to delete %s: %v", k, err)
 				metrics.GarbageCollectorOperations.WithLabelValues("memorystore_delete", "error").Inc()
+				continue
 			}
 
 			metrics.GarbageCollectorOperations.WithLabelValues("memorystore_delete", "success").Inc()
