@@ -11,6 +11,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/m-lab/locate/memorystore"
 	"google.golang.org/api/dns/v1"
+	"google.golang.org/api/googleapi"
 )
 
 type fakeDNS struct {
@@ -148,6 +149,39 @@ func TestGarbageCollector_List(t *testing.T) {
 	_, _, err := gc.List()
 	if err != fakeMSClient.getErr {
 		t.Errorf("List() failed for unexpected reason; got %v; want %v", err, fakeMSClient.getErr)
+	}
+}
+
+func TestGarbageCollector_List_RecordsAlreadyGone(t *testing.T) {
+	// The DNS records (or the whole zone) no longer exist, so every lookup
+	// returns not found. ChangeCreate fails if called, like Cloud DNS does
+	// for a change without any actions.
+	dns := &fakeDNS{
+		getErr: &googleapi.Error{Code: 404},
+		chgErr: errors.New("fake empty change error"),
+	}
+	fakeMSClient := &fakeMemorystoreClient[Status]{
+		m: map[string]Status{
+			"foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org": {
+				DNS: &DNSRecord{
+					LastUpdate: 0,
+				},
+			},
+		},
+	}
+	gc := NewGarbageCollector(dns, "test-project", fakeMSClient, 3*time.Hour, 1*time.Hour)
+
+	nodes, _, err := gc.List()
+	if err != nil {
+		t.Errorf("List() returned err, expected nil: %v", err)
+	}
+	if len(nodes) != 0 {
+		t.Errorf("List() returned expired nodes; got %v, want none", nodes)
+	}
+	// Check that the expired record was removed even though there was nothing
+	// to delete from DNS.
+	if _, ok := fakeMSClient.m["foo-lga12345-c0a80001.bar.sandbox.measurement-lab.org"]; ok {
+		t.Errorf("List() failed to remove expired record whose DNS records are already gone.")
 	}
 }
 
